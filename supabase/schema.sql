@@ -1,0 +1,175 @@
+-- ==============================================================================
+-- Milk Dairy & Distribution Management System - Database Schema (Supabase)
+-- ==============================================================================
+
+-- Enable UUID extension
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+-- 1. CUSTOMERS TABLE
+CREATE TABLE IF NOT EXISTS customers (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    name TEXT NOT NULL,
+    phone TEXT NOT NULL UNIQUE,
+    address TEXT,
+    fixed_rate_per_kg NUMERIC(10, 2) NOT NULL DEFAULT 180.00,
+    previous_balance NUMERIC(10, 2) NOT NULL DEFAULT 0.00,
+    is_active BOOLEAN NOT NULL DEFAULT true,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- 2. DAILY SALES (MILK DELIVERIES) TABLE
+CREATE TABLE IF NOT EXISTS daily_sales (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    customer_id UUID NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+    entry_date DATE NOT NULL,
+    qty_kg NUMERIC(8, 2) NOT NULL DEFAULT 0.00,
+    is_nagha BOOLEAN NOT NULL DEFAULT false,
+    custom_rate NUMERIC(10, 2),
+    total_amount NUMERIC(10, 2) NOT NULL DEFAULT 0.00,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CONSTRAINT unique_customer_entry_date UNIQUE (customer_id, entry_date)
+);
+
+-- 3. CUSTOMER PAYMENTS TABLE
+CREATE TABLE IF NOT EXISTS customer_payments (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    customer_id UUID NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+    payment_date DATE NOT NULL DEFAULT CURRENT_DATE,
+    amount_paid NUMERIC(10, 2) NOT NULL CHECK (amount_paid > 0),
+    payment_mode TEXT NOT NULL CHECK (payment_mode IN ('Cash', 'Bank Transfer', 'EasyPaisa/JazzCash')),
+    notes TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- 4. SUPPLIERS TABLE
+CREATE TABLE IF NOT EXISTS suppliers (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    supplier_name TEXT NOT NULL,
+    phone TEXT,
+    purchase_rate_per_kg NUMERIC(10, 2) NOT NULL DEFAULT 160.00,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- 5. DAILY PURCHASES (FARM INTAKE) TABLE
+CREATE TABLE IF NOT EXISTS daily_purchases (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    supplier_id UUID NOT NULL REFERENCES suppliers(id) ON DELETE CASCADE,
+    purchase_date DATE NOT NULL,
+    qty_kg NUMERIC(8, 2) NOT NULL CHECK (qty_kg >= 0),
+    rate_per_kg NUMERIC(10, 2) NOT NULL CHECK (rate_per_kg >= 0),
+    total_cost NUMERIC(10, 2) NOT NULL DEFAULT 0.00,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- 6. DAILY EXPENSES TABLE
+CREATE TABLE IF NOT EXISTS daily_expenses (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    expense_date DATE NOT NULL DEFAULT CURRENT_DATE,
+    category TEXT NOT NULL CHECK (category IN ('Petrol/Fuel', 'Vehicle Maintenance', 'Staff Salary', 'Feed/Containers', 'Miscellaneous')),
+    amount NUMERIC(10, 2) NOT NULL CHECK (amount > 0),
+    description TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- 7. PROFILES / ADMIN METADATA TABLE (Optional - linked to Supabase Auth users)
+CREATE TABLE IF NOT EXISTS profiles (
+    id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+    business_name TEXT NOT NULL DEFAULT 'Mian Dairy Farm',
+    email TEXT,
+    phone TEXT,
+    role TEXT NOT NULL DEFAULT 'admin',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- ==============================================================================
+-- INDEXES FOR OPTIMAL QUERY PERFORMANCE
+-- ==============================================================================
+CREATE INDEX IF NOT EXISTS idx_customers_phone ON customers(phone);
+CREATE INDEX IF NOT EXISTS idx_customers_is_active ON customers(is_active);
+CREATE INDEX IF NOT EXISTS idx_daily_sales_entry_date ON daily_sales(entry_date);
+CREATE INDEX IF NOT EXISTS idx_daily_sales_customer_id ON daily_sales(customer_id);
+CREATE INDEX IF NOT EXISTS idx_customer_payments_customer_id ON customer_payments(customer_id);
+CREATE INDEX IF NOT EXISTS idx_customer_payments_date ON customer_payments(payment_date);
+CREATE INDEX IF NOT EXISTS idx_daily_purchases_date ON daily_purchases(purchase_date);
+CREATE INDEX IF NOT EXISTS idx_daily_purchases_supplier ON daily_purchases(supplier_id);
+CREATE INDEX IF NOT EXISTS idx_daily_expenses_date ON daily_expenses(expense_date);
+CREATE INDEX IF NOT EXISTS idx_daily_expenses_category ON daily_expenses(category);
+
+-- ==============================================================================
+-- ROW LEVEL SECURITY (RLS) POLICIES
+-- ==============================================================================
+ALTER TABLE customers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE daily_sales ENABLE ROW LEVEL SECURITY;
+ALTER TABLE customer_payments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE suppliers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE daily_purchases ENABLE ROW LEVEL SECURITY;
+ALTER TABLE daily_expenses ENABLE ROW LEVEL SECURITY;
+ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
+
+-- Allow anonymous & authenticated access (standard for single-tenant / local web portal)
+CREATE POLICY "Allow all operations on customers" ON customers FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all operations on daily_sales" ON daily_sales FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all operations on customer_payments" ON customer_payments FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all operations on suppliers" ON suppliers FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all operations on daily_purchases" ON daily_purchases FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all operations on daily_expenses" ON daily_expenses FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all operations on profiles" ON profiles FOR ALL USING (true) WITH CHECK (true);
+
+-- ==============================================================================
+-- SAMPLE INITIAL DATA (Optional - can be run to seed test data)
+-- ==============================================================================
+INSERT INTO customers (id, name, phone, address, fixed_rate_per_kg, previous_balance, is_active)
+VALUES 
+  ('a1b2c3d4-0001-0000-0000-000000000001', 'Haji Mohammad Rafiq', '03001234567', 'House 14, Street 5, Model Town', 190.00, 1500.00, true),
+  ('a1b2c3d4-0002-0000-0000-000000000002', 'Dr. Tariq Mahmood', '03217654321', 'Plot 88, Sector G-9', 190.00, 0.00, true),
+  ('a1b2c3d4-0003-0000-0000-000000000003', 'Mrs. Zainab Bibi', '03339876543', 'Flat 4-B, Al-Madina Heights', 185.00, 3200.00, true),
+  ('a1b2c3d4-0004-0000-0000-000000000004', 'Bilal Ahmed Butt', '03124567890', 'Shop #12, Main Bazar', 180.00, 850.00, true),
+  ('a1b2c3d4-0005-0000-0000-000000000005', 'Chaudhry Akram', '03456789012', 'Farm House 3, Canal Road', 185.00, 0.00, true)
+ON CONFLICT (phone) DO NOTHING;
+
+INSERT INTO suppliers (id, supplier_name, phone, purchase_rate_per_kg)
+VALUES
+  ('b1b2c3d4-0001-0000-0000-000000000001', 'Al-Rehman Dairy Farm', '03011112233', 160.00),
+  ('b1b2c3d4-0002-0000-0000-000000000002', 'Green Valley Buffalo Farm', '03022223344', 162.00)
+ON CONFLICT DO NOTHING;
+
+-- ==============================================================================
+-- FOREIGN KEY CASCADE ENFORCEMENT (For existing setups)
+-- Run these statements if your database tables were previously created without ON DELETE CASCADE
+-- ==============================================================================
+DO $$
+BEGIN
+  -- 1. Daily Sales -> Customers
+  IF EXISTS (
+    SELECT 1 FROM information_schema.table_constraints
+    WHERE constraint_name = 'daily_sales_customer_id_fkey'
+  ) THEN
+    ALTER TABLE daily_sales DROP CONSTRAINT daily_sales_customer_id_fkey;
+  END IF;
+  ALTER TABLE daily_sales
+    ADD CONSTRAINT daily_sales_customer_id_fkey
+    FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE;
+
+  -- 2. Customer Payments -> Customers
+  IF EXISTS (
+    SELECT 1 FROM information_schema.table_constraints
+    WHERE constraint_name = 'customer_payments_customer_id_fkey'
+  ) THEN
+    ALTER TABLE customer_payments DROP CONSTRAINT customer_payments_customer_id_fkey;
+  END IF;
+  ALTER TABLE customer_payments
+    ADD CONSTRAINT customer_payments_customer_id_fkey
+    FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE;
+
+  -- 3. Daily Purchases -> Suppliers
+  IF EXISTS (
+    SELECT 1 FROM information_schema.table_constraints
+    WHERE constraint_name = 'daily_purchases_supplier_id_fkey'
+  ) THEN
+    ALTER TABLE daily_purchases DROP CONSTRAINT daily_purchases_supplier_id_fkey;
+  END IF;
+  ALTER TABLE daily_purchases
+    ADD CONSTRAINT daily_purchases_supplier_id_fkey
+    FOREIGN KEY (supplier_id) REFERENCES suppliers(id) ON DELETE CASCADE;
+END $$;
+
