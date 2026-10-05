@@ -70,9 +70,13 @@ export function SupplierFormDialog({
     try {
       setSubmitting(true);
       setErrorMsg(null);
-      await onSave(values);
+      await onSave({
+        ...values,
+        purchase_rate_per_kg: parseFloat(String(values.purchase_rate_per_kg)),
+      });
       onOpenChange(false);
     } catch (err: any) {
+      if (err) console.error("Supabase Error:", err);
       setErrorMsg(err?.message || "Failed to save supplier.");
     } finally {
       setSubmitting(false);

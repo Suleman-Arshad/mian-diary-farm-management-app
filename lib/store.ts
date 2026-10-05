@@ -29,6 +29,22 @@ const STORAGE_KEYS = {
   EXPENSES: "milk_dairy_expenses",
 };
 
+// Helper: check if a string is a standard UUID
+function isUuid(id?: string | null): boolean {
+  if (!id) return false;
+  return /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(id);
+}
+
+// Helper: format descriptive Supabase error string for UI toasts & exceptions
+export function formatSupabaseError(error: any): string {
+  if (!error) return "Unknown Supabase database error";
+  let msg = error.message || "Database request failed";
+  if (error.code) msg += ` (Code: ${error.code})`;
+  if (error.hint) msg += ` - ${error.hint}`;
+  if (error.details) msg += ` [${error.details}]`;
+  return msg;
+}
+
 // Dispatch global store update event for immediate real-time sync across all pages
 export function notifyStoreUpdated() {
   if (typeof window !== "undefined") {
@@ -108,9 +124,14 @@ export const DataStore = {
           .from("customers")
           .select("*")
           .order("name", { ascending: true });
-        if (!error && data) return data as Customer[];
+
+        if (error) {
+          console.error("Supabase Error in getCustomers:", error);
+        } else if (data) {
+          return data as Customer[];
+        }
       } catch (e) {
-        console.warn("Supabase query failed, falling back to local store", e);
+        console.error("Supabase exception in getCustomers:", e);
       }
     }
     return getLocal<Customer[]>(STORAGE_KEYS.CUSTOMERS, initialCustomers);
@@ -124,46 +145,74 @@ export const DataStore = {
   async saveCustomer(
     customer: Omit<Customer, "id" | "created_at"> & { id?: string }
   ): Promise<Customer> {
+    // 1. Strict numeric field parsing and data sanitization
+    const fixed_rate_per_kg = parseFloat(String(customer.fixed_rate_per_kg)) || 180;
+    const previous_balance = parseFloat(String(customer.previous_balance)) || 0;
+    const is_active = customer.is_active !== undefined ? Boolean(customer.is_active) : true;
+
+    const payload: Record<string, any> = {
+      name: String(customer.name).trim(),
+      phone: String(customer.phone).trim(),
+      address: customer.address ? String(customer.address).trim() : null,
+      fixed_rate_per_kg,
+      previous_balance,
+      is_active,
+    };
+
     if (isSupabaseConfigured) {
-      try {
-        if (customer.id) {
-          const { data, error } = await supabase
-            .from("customers")
-            .update(customer)
-            .eq("id", customer.id)
-            .select()
-            .single();
-          if (!error && data) {
-            notifyStoreUpdated();
-            return data as Customer;
-          }
-        } else {
-          const { data, error } = await supabase
-            .from("customers")
-            .insert([customer])
-            .select()
-            .single();
-          if (!error && data) {
-            notifyStoreUpdated();
-            return data as Customer;
-          }
+      if (customer.id && isUuid(customer.id)) {
+        // Update existing customer with valid UUID
+        const { data, error } = await supabase
+          .from("customers")
+          .update(payload)
+          .eq("id", customer.id)
+          .select()
+          .single();
+
+        if (error) {
+          console.error("Supabase Error (update customer):", error);
+          throw new Error(formatSupabaseError(error));
         }
-      } catch (e) {
-        console.warn("Supabase customer save failed, using local store", e);
+
+        if (data) {
+          notifyStoreUpdated();
+          return data as Customer;
+        }
+      } else {
+        // Insert new customer (let Supabase generate UUID id)
+        const { data, error } = await supabase
+          .from("customers")
+          .insert([payload])
+          .select()
+          .single();
+
+        if (error) {
+          console.error("Supabase Error (insert customer):", error);
+          throw new Error(formatSupabaseError(error));
+        }
+
+        if (data) {
+          notifyStoreUpdated();
+          return data as Customer;
+        }
       }
     }
 
+    // Offline / Demo Fallback
     const customers = getLocal<Customer[]>(STORAGE_KEYS.CUSTOMERS, initialCustomers);
     let updatedCustomer: Customer;
     if (customer.id) {
       updatedCustomer = {
         ...customer,
         id: customer.id,
+        fixed_rate_per_kg,
+        previous_balance,
+        is_active,
         created_at: new Date().toISOString(),
       } as Customer;
       const index = customers.findIndex((c) => c.id === customer.id);
       if (index >= 0) {
-        customers[index] = { ...customers[index], ...customer };
+        customers[index] = { ...customers[index], ...updatedCustomer };
       } else {
         customers.push(updatedCustomer);
       }
@@ -171,6 +220,9 @@ export const DataStore = {
       updatedCustomer = {
         ...customer,
         id: `c-${Date.now()}`,
+        fixed_rate_per_kg,
+        previous_balance,
+        is_active,
         created_at: new Date().toISOString(),
       };
       customers.push(updatedCustomer);
@@ -180,19 +232,22 @@ export const DataStore = {
   },
 
   async deleteCustomer(id: string): Promise<boolean> {
-    // 1. Supabase cascade deletion: explicitly delete associated child records then customer
-    if (isSupabaseConfigured) {
+    if (isSupabaseConfigured && isUuid(id)) {
       try {
         await supabase.from("daily_sales").delete().eq("customer_id", id);
         await supabase.from("customer_payments").delete().eq("customer_id", id);
         const { error } = await supabase.from("customers").delete().eq("id", id);
-        if (error) console.warn("Supabase customer delete warning:", error);
-      } catch (e) {
-        console.warn("Supabase customer delete failed, using local store", e);
+        if (error) {
+          console.error("Supabase Error (delete customer):", error);
+          throw new Error(formatSupabaseError(error));
+        }
+      } catch (e: any) {
+        console.error("Supabase Error (delete customer exception):", e);
+        throw e;
       }
     }
 
-    // 2. Local storage cascade deletion: purge customer, daily deliveries, and customer payments
+    // Local storage cascade deletion: purge customer, daily deliveries, and customer payments
     const customers = getLocal<Customer[]>(STORAGE_KEYS.CUSTOMERS, initialCustomers);
     setLocal(
       STORAGE_KEYS.CUSTOMERS,
@@ -233,8 +288,10 @@ export const DataStore = {
           .from("daily_sales")
           .select("*, customer:customers(*)")
           .eq("entry_date", dateStr);
-        if (!error && data) {
-          // Strictly exclude orphaned or deleted customer entries
+
+        if (error) {
+          console.error("Supabase Error in getDailySalesByDate:", error);
+        } else if (data) {
           return (data as DailySale[])
             .filter((s) => customerMap.has(s.customer_id))
             .map((s) => ({
@@ -243,7 +300,7 @@ export const DataStore = {
             }));
         }
       } catch (e) {
-        console.warn("Supabase sales query failed, using local store", e);
+        console.error("Supabase exception in getDailySalesByDate:", e);
       }
     }
 
@@ -268,7 +325,10 @@ export const DataStore = {
           .from("daily_sales")
           .select("*, customer:customers(*)")
           .order("entry_date", { ascending: false });
-        if (!error && data) {
+
+        if (error) {
+          console.error("Supabase Error in getAllDailySales:", error);
+        } else if (data) {
           return (data as DailySale[])
             .filter((s) => customerMap.has(s.customer_id))
             .map((s) => ({
@@ -277,7 +337,7 @@ export const DataStore = {
             }));
         }
       } catch (e) {
-        console.warn("Supabase sales query failed, using local store", e);
+        console.error("Supabase exception in getAllDailySales:", e);
       }
     }
 
@@ -294,28 +354,54 @@ export const DataStore = {
     entries: Array<{
       customer_id: string;
       entry_date: string;
-      qty_kg: number;
+      qty_kg: number | string;
       is_nagha: boolean;
-      custom_rate?: number | null;
-      total_amount: number;
+      custom_rate?: number | string | null;
+      total_amount: number | string;
     }>
   ): Promise<boolean> {
-    if (isSupabaseConfigured) {
-      try {
-        const { error } = await supabase
-          .from("daily_sales")
-          .upsert(entries, { onConflict: "customer_id,entry_date" });
-        if (!error) {
-          notifyStoreUpdated();
-          return true;
-        }
-      } catch (e) {
-        console.warn("Supabase batch sales save failed, using local store", e);
+    // 1. Strict numeric field parsing and foreign key verification
+    const cleanEntries = entries.map((entry) => {
+      const customer_id = String(entry.customer_id).trim();
+      if (!customer_id) {
+        throw new Error("Missing foreign key: customer_id is required for daily sale entry.");
       }
+
+      const qty_kg = entry.is_nagha ? 0 : parseFloat(String(entry.qty_kg)) || 0;
+      const custom_rate =
+        entry.custom_rate !== undefined && entry.custom_rate !== null && entry.custom_rate !== ""
+          ? parseFloat(String(entry.custom_rate))
+          : null;
+      const total_amount = parseFloat(String(entry.total_amount)) || 0;
+
+      return {
+        customer_id,
+        entry_date: String(entry.entry_date),
+        qty_kg,
+        is_nagha: Boolean(entry.is_nagha),
+        custom_rate,
+        total_amount,
+      };
+    });
+
+    if (isSupabaseConfigured) {
+      const { data, error } = await supabase
+        .from("daily_sales")
+        .upsert(cleanEntries, { onConflict: "customer_id,entry_date" })
+        .select();
+
+      if (error) {
+        console.error("Supabase Error (upsert daily_sales):", error);
+        throw new Error(formatSupabaseError(error));
+      }
+
+      notifyStoreUpdated();
+      return true;
     }
 
+    // Local storage fallback
     const allSales = getLocal<DailySale[]>(STORAGE_KEYS.DAILY_SALES, initialDailySales);
-    for (const entry of entries) {
+    for (const entry of cleanEntries) {
       const existingIndex = allSales.findIndex(
         (s) => s.customer_id === entry.customer_id && s.entry_date === entry.entry_date
       );
@@ -352,7 +438,10 @@ export const DataStore = {
           .order("payment_date", { ascending: false });
         if (customerId) query = query.eq("customer_id", customerId);
         const { data, error } = await query;
-        if (!error && data) {
+
+        if (error) {
+          console.error("Supabase Error in getCustomerPayments:", error);
+        } else if (data) {
           return (data as CustomerPayment[])
             .filter((p) => customerMap.has(p.customer_id))
             .map((p) => ({
@@ -361,7 +450,7 @@ export const DataStore = {
             }));
         }
       } catch (e) {
-        console.warn("Supabase payments query failed, using local store", e);
+        console.error("Supabase exception in getCustomerPayments:", e);
       }
     }
 
@@ -383,19 +472,39 @@ export const DataStore = {
   async saveCustomerPayment(
     payment: Omit<CustomerPayment, "id" | "created_at">
   ): Promise<CustomerPayment> {
+    const customer_id = String(payment.customer_id).trim();
+    if (!customer_id) {
+      throw new Error("Missing foreign key: customer_id is required to record a payment.");
+    }
+
+    const amount_paid = parseFloat(String(payment.amount_paid));
+    if (isNaN(amount_paid) || amount_paid <= 0) {
+      throw new Error("Payment amount must be a positive number.");
+    }
+
+    const payload = {
+      customer_id,
+      payment_date: String(payment.payment_date),
+      amount_paid,
+      payment_mode: payment.payment_mode,
+      notes: payment.notes ? String(payment.notes).trim() : null,
+    };
+
     if (isSupabaseConfigured) {
-      try {
-        const { data, error } = await supabase
-          .from("customer_payments")
-          .insert([payment])
-          .select("*, customer:customers(*)")
-          .single();
-        if (!error && data) {
-          notifyStoreUpdated();
-          return data as CustomerPayment;
-        }
-      } catch (e) {
-        console.warn("Supabase payment insert failed, using local store", e);
+      const { data, error } = await supabase
+        .from("customer_payments")
+        .insert([payload])
+        .select("*, customer:customers(*)")
+        .single();
+
+      if (error) {
+        console.error("Supabase Error (insert customer_payments):", error);
+        throw new Error(formatSupabaseError(error));
+      }
+
+      if (data) {
+        notifyStoreUpdated();
+        return data as CustomerPayment;
       }
     }
 
@@ -404,7 +513,7 @@ export const DataStore = {
       initialCustomerPayments
     );
     const newPayment: CustomerPayment = {
-      ...payment,
+      ...payload,
       id: `p-${Date.now()}`,
       created_at: new Date().toISOString(),
     };
@@ -424,9 +533,14 @@ export const DataStore = {
           .from("suppliers")
           .select("*")
           .order("supplier_name", { ascending: true });
-        if (!error && data) return data as Supplier[];
+
+        if (error) {
+          console.error("Supabase Error in getSuppliers:", error);
+        } else if (data) {
+          return data as Supplier[];
+        }
       } catch (e) {
-        console.warn("Supabase suppliers query failed, using local store", e);
+        console.error("Supabase exception in getSuppliers:", e);
       }
     }
     return getLocal<Supplier[]>(STORAGE_KEYS.SUPPLIERS, initialSuppliers);
@@ -435,32 +549,47 @@ export const DataStore = {
   async saveSupplier(
     supplier: Omit<Supplier, "id" | "created_at"> & { id?: string }
   ): Promise<Supplier> {
+    const purchase_rate_per_kg = parseFloat(String(supplier.purchase_rate_per_kg)) || 160;
+    const payload = {
+      supplier_name: String(supplier.supplier_name).trim(),
+      phone: supplier.phone ? String(supplier.phone).trim() : null,
+      purchase_rate_per_kg,
+    };
+
     if (isSupabaseConfigured) {
-      try {
-        if (supplier.id) {
-          const { data, error } = await supabase
-            .from("suppliers")
-            .update(supplier)
-            .eq("id", supplier.id)
-            .select()
-            .single();
-          if (!error && data) {
-            notifyStoreUpdated();
-            return data as Supplier;
-          }
-        } else {
-          const { data, error } = await supabase
-            .from("suppliers")
-            .insert([supplier])
-            .select()
-            .single();
-          if (!error && data) {
-            notifyStoreUpdated();
-            return data as Supplier;
-          }
+      if (supplier.id && isUuid(supplier.id)) {
+        const { data, error } = await supabase
+          .from("suppliers")
+          .update(payload)
+          .eq("id", supplier.id)
+          .select()
+          .single();
+
+        if (error) {
+          console.error("Supabase Error (update supplier):", error);
+          throw new Error(formatSupabaseError(error));
         }
-      } catch (e) {
-        console.warn("Supabase supplier save failed, using local store", e);
+
+        if (data) {
+          notifyStoreUpdated();
+          return data as Supplier;
+        }
+      } else {
+        const { data, error } = await supabase
+          .from("suppliers")
+          .insert([payload])
+          .select()
+          .single();
+
+        if (error) {
+          console.error("Supabase Error (insert supplier):", error);
+          throw new Error(formatSupabaseError(error));
+        }
+
+        if (data) {
+          notifyStoreUpdated();
+          return data as Supplier;
+        }
       }
     }
 
@@ -468,12 +597,17 @@ export const DataStore = {
     let updated: Supplier;
     if (supplier.id) {
       const idx = suppliers.findIndex((s) => s.id === supplier.id);
-      updated = { ...supplier, id: supplier.id, created_at: new Date().toISOString() };
+      updated = {
+        ...supplier,
+        ...payload,
+        id: supplier.id,
+        created_at: new Date().toISOString(),
+      };
       if (idx >= 0) suppliers[idx] = updated;
       else suppliers.push(updated);
     } else {
       updated = {
-        ...supplier,
+        ...payload,
         id: `s-${Date.now()}`,
         created_at: new Date().toISOString(),
       };
@@ -484,18 +618,20 @@ export const DataStore = {
   },
 
   async deleteSupplier(id: string): Promise<boolean> {
-    // 1. Supabase cascade deletion: explicitly delete associated daily_purchases then supplier
-    if (isSupabaseConfigured) {
+    if (isSupabaseConfigured && isUuid(id)) {
       try {
         await supabase.from("daily_purchases").delete().eq("supplier_id", id);
         const { error } = await supabase.from("suppliers").delete().eq("id", id);
-        if (error) console.warn("Supabase supplier delete warning:", error);
-      } catch (e) {
-        console.warn("Supabase supplier delete failed, using local store", e);
+        if (error) {
+          console.error("Supabase Error (delete supplier):", error);
+          throw new Error(formatSupabaseError(error));
+        }
+      } catch (e: any) {
+        console.error("Supabase exception in deleteSupplier:", e);
+        throw e;
       }
     }
 
-    // 2. Local storage cascade deletion: purge supplier and their daily purchase entries
     const suppliers = getLocal<Supplier[]>(STORAGE_KEYS.SUPPLIERS, initialSuppliers);
     setLocal(
       STORAGE_KEYS.SUPPLIERS,
@@ -526,8 +662,10 @@ export const DataStore = {
           .from("daily_purchases")
           .select("*, supplier:suppliers(*)")
           .order("purchase_date", { ascending: false });
-        if (!error && data) {
-          // Strictly exclude orphaned purchases where supplier was deleted
+
+        if (error) {
+          console.error("Supabase Error in getDailyPurchases:", error);
+        } else if (data) {
           return (data as DailyPurchase[])
             .filter((p) => supMap.has(p.supplier_id))
             .map((p) => ({
@@ -536,7 +674,7 @@ export const DataStore = {
             }));
         }
       } catch (e) {
-        console.warn("Supabase purchases query failed, using local store", e);
+        console.error("Supabase exception in getDailyPurchases:", e);
       }
     }
 
@@ -555,22 +693,44 @@ export const DataStore = {
   async saveDailyPurchase(
     purchase: Omit<DailyPurchase, "id" | "created_at" | "total_cost">
   ): Promise<DailyPurchase> {
-    const total_cost = purchase.qty_kg * purchase.rate_per_kg;
-    const payload = { ...purchase, total_cost };
+    const supplier_id = String(purchase.supplier_id).trim();
+    if (!supplier_id) {
+      throw new Error("Missing foreign key: supplier_id is required to record a purchase.");
+    }
+
+    const qty_kg = parseFloat(String(purchase.qty_kg));
+    const rate_per_kg = parseFloat(String(purchase.rate_per_kg));
+    if (isNaN(qty_kg) || qty_kg <= 0) {
+      throw new Error("Purchase quantity must be greater than 0.");
+    }
+    if (isNaN(rate_per_kg) || rate_per_kg <= 0) {
+      throw new Error("Purchase rate must be greater than 0.");
+    }
+
+    const total_cost = Math.round(qty_kg * rate_per_kg * 100) / 100;
+    const payload = {
+      supplier_id,
+      purchase_date: String(purchase.purchase_date),
+      qty_kg,
+      rate_per_kg,
+      total_cost,
+    };
 
     if (isSupabaseConfigured) {
-      try {
-        const { data, error } = await supabase
-          .from("daily_purchases")
-          .insert([payload])
-          .select("*, supplier:suppliers(*)")
-          .single();
-        if (!error && data) {
-          notifyStoreUpdated();
-          return data as DailyPurchase;
-        }
-      } catch (e) {
-        console.warn("Supabase purchase insert failed, using local store", e);
+      const { data, error } = await supabase
+        .from("daily_purchases")
+        .insert([payload])
+        .select("*, supplier:suppliers(*)")
+        .single();
+
+      if (error) {
+        console.error("Supabase Error (insert daily_purchases):", error);
+        throw new Error(formatSupabaseError(error));
+      }
+
+      if (data) {
+        notifyStoreUpdated();
+        return data as DailyPurchase;
       }
     }
 
@@ -598,9 +758,14 @@ export const DataStore = {
           .from("daily_expenses")
           .select("*")
           .order("expense_date", { ascending: false });
-        if (!error && data) return data as DailyExpense[];
+
+        if (error) {
+          console.error("Supabase Error in getDailyExpenses:", error);
+        } else if (data) {
+          return data as DailyExpense[];
+        }
       } catch (e) {
-        console.warn("Supabase expenses query failed, using local store", e);
+        console.error("Supabase exception in getDailyExpenses:", e);
       }
     }
     return getLocal<DailyExpense[]>(STORAGE_KEYS.EXPENSES, initialDailyExpenses);
@@ -609,19 +774,33 @@ export const DataStore = {
   async saveDailyExpense(
     expense: Omit<DailyExpense, "id" | "created_at">
   ): Promise<DailyExpense> {
+    const amount = parseFloat(String(expense.amount));
+    if (isNaN(amount) || amount <= 0) {
+      throw new Error("Expense amount must be greater than 0.");
+    }
+
+    const payload = {
+      expense_date: String(expense.expense_date),
+      category: expense.category,
+      amount,
+      description: expense.description ? String(expense.description).trim() : null,
+    };
+
     if (isSupabaseConfigured) {
-      try {
-        const { data, error } = await supabase
-          .from("daily_expenses")
-          .insert([expense])
-          .select()
-          .single();
-        if (!error && data) {
-          notifyStoreUpdated();
-          return data as DailyExpense;
-        }
-      } catch (e) {
-        console.warn("Supabase expense insert failed, using local store", e);
+      const { data, error } = await supabase
+        .from("daily_expenses")
+        .insert([payload])
+        .select()
+        .single();
+
+      if (error) {
+        console.error("Supabase Error (insert daily_expenses):", error);
+        throw new Error(formatSupabaseError(error));
+      }
+
+      if (data) {
+        notifyStoreUpdated();
+        return data as DailyExpense;
       }
     }
 
@@ -630,7 +809,7 @@ export const DataStore = {
       initialDailyExpenses
     );
     const newExpense: DailyExpense = {
-      ...expense,
+      ...payload,
       id: `e-${Date.now()}`,
       created_at: new Date().toISOString(),
     };
@@ -640,17 +819,21 @@ export const DataStore = {
   },
 
   async deleteDailyExpense(id: string): Promise<boolean> {
-    if (isSupabaseConfigured) {
+    if (isSupabaseConfigured && isUuid(id)) {
       try {
         const { error } = await supabase.from("daily_expenses").delete().eq("id", id);
-        if (!error) {
-          notifyStoreUpdated();
-          return true;
+        if (error) {
+          console.error("Supabase Error (delete daily_expenses):", error);
+          throw new Error(formatSupabaseError(error));
         }
-      } catch (e) {
-        console.warn("Supabase expense delete failed, using local store", e);
+        notifyStoreUpdated();
+        return true;
+      } catch (e: any) {
+        console.error("Supabase exception in deleteDailyExpense:", e);
+        throw e;
       }
     }
+
     const expenses = getLocal<DailyExpense[]>(
       STORAGE_KEYS.EXPENSES,
       initialDailyExpenses
@@ -710,7 +893,7 @@ export const DataStore = {
     if (customer.previous_balance > 0) {
       transactions.push({
         id: `open-${customer.id}`,
-        date: customer.created_at.split('T')[0] || "2026-01-01",
+        date: customer.created_at ? customer.created_at.split('T')[0] : "2026-01-01",
         type: 'OPENING_BALANCE',
         description: 'Opening / Previous Balance',
         debit: customer.previous_balance,

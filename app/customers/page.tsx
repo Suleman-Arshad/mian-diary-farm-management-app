@@ -79,28 +79,47 @@ export default function CustomersPage() {
 
   // Handle Add/Edit Customer Save
   const handleSaveCustomer = async (values: CustomerFormValues) => {
-    await DataStore.saveCustomer({
-      ...(customerToEdit ? { id: customerToEdit.id } : {}),
-      name: values.name,
-      phone: values.phone,
-      address: values.address,
-      fixed_rate_per_kg: values.fixed_rate_per_kg,
-      previous_balance: values.previous_balance,
-      is_active: values.is_active,
-    });
-    await loadData();
+    try {
+      await DataStore.saveCustomer({
+        ...(customerToEdit ? { id: customerToEdit.id } : {}),
+        name: values.name,
+        phone: values.phone,
+        address: values.address,
+        fixed_rate_per_kg: parseFloat(String(values.fixed_rate_per_kg)),
+        previous_balance: parseFloat(String(values.previous_balance)) || 0,
+        is_active: values.is_active,
+      });
+      await loadData();
+      showToast(customerToEdit ? "Customer details updated successfully!" : "New customer registered successfully!");
+    } catch (error: any) {
+      if (error) console.error("Supabase Error:", error);
+      const msg = error?.message || "Failed to save customer to database.";
+      showToast(msg, "error");
+      throw error;
+    }
   };
 
   // Handle Payment Save
   const handleSavePayment = async (values: PaymentFormValues) => {
-    await DataStore.saveCustomerPayment({
-      customer_id: values.customer_id,
-      payment_date: values.payment_date,
-      amount_paid: values.amount_paid,
-      payment_mode: values.payment_mode,
-      notes: values.notes,
-    });
-    await loadData();
+    try {
+      if (!values.customer_id) {
+        throw new Error("Customer foreign key is required to record a payment.");
+      }
+      await DataStore.saveCustomerPayment({
+        customer_id: values.customer_id,
+        payment_date: values.payment_date,
+        amount_paid: parseFloat(String(values.amount_paid)),
+        payment_mode: values.payment_mode,
+        notes: values.notes,
+      });
+      await loadData();
+      showToast("Payment recorded successfully!");
+    } catch (error: any) {
+      if (error) console.error("Supabase Error:", error);
+      const msg = error?.message || "Failed to save payment to database.";
+      showToast(msg, "error");
+      throw error;
+    }
   };
 
   // Handle Delete Customer
@@ -117,9 +136,9 @@ export default function CustomersPage() {
         window.dispatchEvent(new Event("milk-store-updated"));
       }
       showToast(`"${deletedName}" deleted successfully.`);
-    } catch (err) {
-      console.error(err);
-      showToast("Failed to delete customer. Please try again.", "error");
+    } catch (err: any) {
+      if (err) console.error("Supabase Error:", err);
+      showToast(err?.message || "Failed to delete customer. Please try again.", "error");
     } finally {
       setIsDeleting(false);
     }

@@ -116,6 +116,19 @@ CREATE POLICY "Allow all operations on daily_expenses" ON daily_expenses FOR ALL
 CREATE POLICY "Allow all operations on profiles" ON profiles FOR ALL USING (true) WITH CHECK (true);
 
 -- ==============================================================================
+-- POSTGRES ROLES & PERMISSIONS (Crucial for Anon & Authenticated API access)
+-- Fixes PostgreSQL error 42501: "permission denied for table <table_name>"
+-- ==============================================================================
+GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
+GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated, service_role;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated, service_role;
+GRANT ALL ON ALL ROUTINES IN SCHEMA public TO anon, authenticated, service_role;
+
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO anon, authenticated, service_role;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO anon, authenticated, service_role;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON ROUTINES TO anon, authenticated, service_role;
+
+-- ==============================================================================
 -- FOREIGN KEY CASCADE ENFORCEMENT (For existing setups)
 -- Run these statements if your database tables were previously created without ON DELETE CASCADE
 -- ==============================================================================

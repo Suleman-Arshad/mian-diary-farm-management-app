@@ -32,6 +32,7 @@ import {
 } from "@/components/ui/table";
 import { PaymentDialog } from "@/components/customers/PaymentDialog";
 import { PaymentFormValues } from "@/lib/validations";
+import { toast } from "@/components/ui/toast";
 
 export default function CustomerDetailPage() {
   const params = useParams();
@@ -77,14 +78,26 @@ export default function CustomerDetailPage() {
   }, [loadLedger]);
 
   const handleSavePayment = async (values: PaymentFormValues) => {
-    await DataStore.saveCustomerPayment({
-      customer_id: values.customer_id,
-      payment_date: values.payment_date,
-      amount_paid: values.amount_paid,
-      payment_mode: values.payment_mode,
-      notes: values.notes,
-    });
-    await loadLedger();
+    try {
+      const customer_id = String(values.customer_id).trim();
+      if (!customer_id) {
+        throw new Error("Customer foreign key is required to record a payment.");
+      }
+      await DataStore.saveCustomerPayment({
+        customer_id,
+        payment_date: values.payment_date,
+        amount_paid: parseFloat(String(values.amount_paid)),
+        payment_mode: values.payment_mode,
+        notes: values.notes,
+      });
+      await loadLedger();
+      toast.success("Payment recorded successfully!");
+    } catch (error: any) {
+      if (error) console.error("Supabase Error:", error);
+      const msg = error?.message || "Failed to record payment to database.";
+      toast.error(msg);
+      throw error;
+    }
   };
 
   if (loading) {

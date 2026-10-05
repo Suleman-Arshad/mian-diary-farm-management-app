@@ -76,9 +76,20 @@ export function PaymentDialog({
     try {
       setSubmitting(true);
       setErrorMsg(null);
-      await onSavePayment(values);
+
+      const customer_id = String(values.customer_id).trim();
+      if (!customer_id) {
+        throw new Error("Customer foreign key is required to record a payment.");
+      }
+
+      await onSavePayment({
+        ...values,
+        customer_id,
+        amount_paid: parseFloat(String(values.amount_paid)),
+      });
       onOpenChange(false);
     } catch (err: any) {
+      if (err) console.error("Supabase Error:", err);
       setErrorMsg(err?.message || "Failed to record payment.");
     } finally {
       setSubmitting(false);

@@ -85,9 +85,21 @@ export function PurchaseEntryDialog({
     try {
       setSubmitting(true);
       setErrorMsg(null);
-      await onSavePurchase(values);
+
+      const supplier_id = String(values.supplier_id).trim();
+      if (!supplier_id) {
+        throw new Error("Supplier foreign key is required to record intake.");
+      }
+
+      await onSavePurchase({
+        ...values,
+        supplier_id,
+        qty_kg: parseFloat(String(values.qty_kg)),
+        rate_per_kg: parseFloat(String(values.rate_per_kg)),
+      });
       onOpenChange(false);
     } catch (err: any) {
+      if (err) console.error("Supabase Error:", err);
       setErrorMsg(err?.message || "Failed to record purchase.");
     } finally {
       setSubmitting(false);

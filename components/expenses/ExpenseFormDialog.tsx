@@ -65,9 +65,13 @@ export function ExpenseFormDialog({
     try {
       setSubmitting(true);
       setErrorMsg(null);
-      await onSaveExpense(values);
+      await onSaveExpense({
+        ...values,
+        amount: parseFloat(String(values.amount)),
+      });
       onOpenChange(false);
     } catch (err: any) {
+      if (err) console.error("Supabase Error:", err);
       setErrorMsg(err?.message || "Failed to log expense.");
     } finally {
       setSubmitting(false);

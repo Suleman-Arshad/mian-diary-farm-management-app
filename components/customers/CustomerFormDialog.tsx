@@ -79,9 +79,14 @@ export function CustomerFormDialog({
     try {
       setSubmitting(true);
       setServerError(null);
-      await onSave(values);
+      await onSave({
+        ...values,
+        fixed_rate_per_kg: parseFloat(String(values.fixed_rate_per_kg)),
+        previous_balance: parseFloat(String(values.previous_balance)) || 0,
+      });
       onOpenChange(false);
     } catch (err: any) {
+      if (err) console.error("Supabase Error:", err);
       setServerError(err?.message || "Failed to save customer. Please try again.");
     } finally {
       setSubmitting(false);

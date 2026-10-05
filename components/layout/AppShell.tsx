@@ -6,6 +6,7 @@ import { Sidebar } from "./Sidebar";
 import { Navbar } from "./Navbar";
 import { MobileNav } from "./MobileNav";
 import { AuthProvider } from "@/components/auth/AuthProvider";
+import { Toaster } from "@/components/ui/toast";
 
 function AppShellContent({ children }: { children: React.ReactNode }) {
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
@@ -14,13 +15,21 @@ function AppShellContent({ children }: { children: React.ReactNode }) {
   // If on login or signup page, don't show the dashboard shell (sidebar, navbar, mobile bottom bar)
   const isAuthPage = pathname === "/login" || pathname === "/signup";
   if (isAuthPage) {
-    return <main className="min-h-screen bg-slate-900">{children}</main>;
+    return (
+      <main className="min-h-screen bg-slate-900">
+        <Toaster />
+        {children}
+      </main>
+    );
   }
 
   return (
     <div className="min-h-screen bg-slate-50/70 font-sans text-slate-900 antialiased flex flex-col">
       {/* Desktop Sidebar */}
       <Sidebar />
+
+      {/* Global Toast Notification Container */}
+      <Toaster />
 
       {/* Main Content Area */}
       <div className="flex flex-col lg:pl-64 flex-1">

@@ -97,23 +97,43 @@ export default function PurchasesPage() {
   }, [loadData]);
 
   const handleSaveSupplier = async (values: SupplierFormValues) => {
-    await DataStore.saveSupplier({
-      ...(supplierToEdit ? { id: supplierToEdit.id } : {}),
-      supplier_name: values.supplier_name,
-      phone: values.phone,
-      purchase_rate_per_kg: values.purchase_rate_per_kg,
-    });
-    await loadData();
+    try {
+      await DataStore.saveSupplier({
+        ...(supplierToEdit ? { id: supplierToEdit.id } : {}),
+        supplier_name: values.supplier_name.trim(),
+        phone: values.phone ? values.phone.trim() : "",
+        purchase_rate_per_kg: parseFloat(String(values.purchase_rate_per_kg)),
+      });
+      await loadData();
+      showToast(supplierToEdit ? "Supplier updated successfully!" : "Supplier registered successfully!");
+    } catch (error: any) {
+      if (error) console.error("Supabase Error:", error);
+      const msg = error?.message || "Failed to save supplier to database.";
+      showToast(msg, "error");
+      throw error;
+    }
   };
 
   const handleSavePurchase = async (values: PurchaseFormValues) => {
-    await DataStore.saveDailyPurchase({
-      supplier_id: values.supplier_id,
-      purchase_date: values.purchase_date,
-      qty_kg: values.qty_kg,
-      rate_per_kg: values.rate_per_kg,
-    });
-    await loadData();
+    try {
+      const supplier_id = String(values.supplier_id).trim();
+      if (!supplier_id) {
+        throw new Error("Supplier foreign key is required to record intake.");
+      }
+      await DataStore.saveDailyPurchase({
+        supplier_id,
+        purchase_date: values.purchase_date,
+        qty_kg: parseFloat(String(values.qty_kg)),
+        rate_per_kg: parseFloat(String(values.rate_per_kg)),
+      });
+      await loadData();
+      showToast("Farm milk intake recorded successfully!");
+    } catch (error: any) {
+      if (error) console.error("Supabase Error:", error);
+      const msg = error?.message || "Failed to record purchase to database.";
+      showToast(msg, "error");
+      throw error;
+    }
   };
 
   // Handle Delete Supplier
@@ -130,9 +150,9 @@ export default function PurchasesPage() {
         window.dispatchEvent(new Event("milk-store-updated"));
       }
       showToast(`"${deletedName}" deleted successfully.`);
-    } catch (err) {
-      console.error(err);
-      showToast("Failed to delete supplier. Please try again.", "error");
+    } catch (err: any) {
+      if (err) console.error("Supabase Error:", err);
+      showToast(err?.message || "Failed to delete supplier. Please try again.", "error");
     } finally {
       setIsDeleting(false);
     }

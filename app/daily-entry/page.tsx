@@ -31,6 +31,7 @@ import {
   TableHead,
   TableCell,
 } from "@/components/ui/table";
+import { toast } from "@/components/ui/toast";
 
 interface EntryRowState {
   customer_id: string;
@@ -224,35 +225,44 @@ export default function DailyMilkEntryPage() {
     });
   };
 
-  // Save all deliveries batch
+  // Save all deliveries batch (logDailyDelivery handler)
   const handleSaveAll = async () => {
     try {
       setSaving(true);
       setStatusMessage(null);
 
       const entriesToSave = rows.map((row) => {
+        const customer_id = String(row.customer_id).trim();
+        if (!customer_id) {
+          throw new Error(`Customer ID foreign key is missing for ${row.customer_name}`);
+        }
+
         const qty = row.is_nagha ? 0 : parseFloat(String(row.qty_kg)) || 0;
         const customRate = row.use_custom_rate
           ? parseFloat(String(row.custom_rate)) || row.fixed_rate
           : null;
+        const totalAmount = parseFloat(String(row.total_amount)) || 0;
 
         return {
-          customer_id: row.customer_id,
+          customer_id,
           entry_date: selectedDate,
           qty_kg: qty,
-          is_nagha: row.is_nagha,
+          is_nagha: Boolean(row.is_nagha),
           custom_rate: customRate,
-          total_amount: row.total_amount,
+          total_amount: totalAmount,
         };
       });
 
       await DataStore.saveBatchDailySales(entriesToSave);
       setSaveSuccess(true);
       setStatusMessage("All milk deliveries saved successfully!");
+      toast.success("All milk deliveries saved successfully!");
       setTimeout(() => setSaveSuccess(false), 4000);
-    } catch (err: any) {
-      console.error(err);
-      setStatusMessage(err?.message || "Failed to save deliveries.");
+    } catch (error: any) {
+      if (error) console.error("Supabase Error:", error);
+      const errorMsg = error?.message || "Failed to save deliveries to database.";
+      setStatusMessage(errorMsg);
+      toast.error(errorMsg);
     } finally {
       setSaving(false);
     }

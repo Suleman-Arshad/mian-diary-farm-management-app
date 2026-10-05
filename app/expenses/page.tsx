@@ -32,6 +32,7 @@ import {
 } from "@/components/ui/table";
 import { ExpenseFormDialog } from "@/components/expenses/ExpenseFormDialog";
 import { ExpenseFormValues } from "@/lib/validations";
+import { toast } from "@/components/ui/toast";
 
 export default function ExpensesPage() {
   const [expenses, setExpenses] = React.useState<DailyExpense[]>([]);
@@ -60,19 +61,33 @@ export default function ExpensesPage() {
   }, [loadData]);
 
   const handleSaveExpense = async (values: ExpenseFormValues) => {
-    await DataStore.saveDailyExpense({
-      expense_date: values.expense_date,
-      category: values.category,
-      amount: values.amount,
-      description: values.description,
-    });
-    await loadData();
+    try {
+      await DataStore.saveDailyExpense({
+        expense_date: values.expense_date,
+        category: values.category,
+        amount: parseFloat(String(values.amount)),
+        description: values.description,
+      });
+      await loadData();
+      toast.success("Expense recorded successfully!");
+    } catch (error: any) {
+      if (error) console.error("Supabase Error:", error);
+      const msg = error?.message || "Failed to record expense to database.";
+      toast.error(msg);
+      throw error;
+    }
   };
 
   const handleDeleteExpense = async (id: string) => {
     if (confirm("Are you sure you want to delete this expense record?")) {
-      await DataStore.deleteDailyExpense(id);
-      await loadData();
+      try {
+        await DataStore.deleteDailyExpense(id);
+        await loadData();
+        toast.success("Expense record deleted successfully.");
+      } catch (error: any) {
+        if (error) console.error("Supabase Error:", error);
+        toast.error(error?.message || "Failed to delete expense record.");
+      }
     }
   };
 
