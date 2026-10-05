@@ -198,7 +198,7 @@ export function InvoicePDFDocument({ bill }: { bill: MonthlyBillSummary }) {
             <Text style={styles.brandSub}>
               Fresh Farm Milk Daily Supply & Distribution
             </Text>
-            <Text style={styles.brandSub}>Helpline / Support: 0300-1234567</Text>
+            <Text style={styles.brandSub}>Helpline / Support: 0314-6532458</Text>
           </View>
           <View style={styles.invoiceMeta}>
             <Text style={styles.invoiceTitle}>MONTHLY MILK BILL</Text>
