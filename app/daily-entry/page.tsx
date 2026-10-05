@@ -432,7 +432,7 @@ export default function DailyMilkEntryPage() {
                       <div className="relative">
                         <Input
                           type="number"
-                          step="0.25"
+                          step="any"
                           min="0"
                           placeholder="0.00"
                           value={row.qty_kg}
@@ -467,7 +467,7 @@ export default function DailyMilkEntryPage() {
                           {row.use_custom_rate ? (
                             <Input
                               type="number"
-                              step="1"
+                              step="any"
                               value={row.custom_rate}
                               disabled={row.is_nagha}
                               onChange={(e) => handleCustomRateValue(idx, e.target.value)}
@@ -549,7 +549,7 @@ export default function DailyMilkEntryPage() {
                     </label>
                     <Input
                       type="number"
-                      step="0.25"
+                      step="any"
                       min="0"
                       placeholder="0.0"
                       value={row.qty_kg}

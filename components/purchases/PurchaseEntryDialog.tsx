@@ -161,8 +161,8 @@ export function PurchaseEntryDialog({
               <Input
                 id="qty_kg"
                 type="number"
-                step="0.5"
-                min="0.5"
+                step="any"
+                min="0"
                 placeholder="50"
                 {...register("qty_kg")}
               />
@@ -176,8 +176,8 @@ export function PurchaseEntryDialog({
               <Input
                 id="rate_per_kg"
                 type="number"
-                step="0.5"
-                min="1"
+                step="any"
+                min="0"
                 placeholder="160"
                 {...register("rate_per_kg")}
               />

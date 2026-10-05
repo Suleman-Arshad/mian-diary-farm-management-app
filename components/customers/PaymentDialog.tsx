@@ -160,8 +160,8 @@ export function PaymentDialog({
               <Input
                 id="amount_paid"
                 type="number"
-                step="10"
-                min="1"
+                step="any"
+                min="0"
                 placeholder="2000"
                 {...register("amount_paid")}
               />

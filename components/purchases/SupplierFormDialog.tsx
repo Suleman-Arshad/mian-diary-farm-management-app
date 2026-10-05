@@ -135,8 +135,8 @@ export function SupplierFormDialog({
             <Input
               id="purchase_rate_per_kg"
               type="number"
-              step="0.5"
-              min="1"
+              step="any"
+              min="0"
               placeholder="160"
               {...register("purchase_rate_per_kg")}
             />

@@ -129,8 +129,8 @@ export function ExpenseFormDialog({
               <Input
                 id="amount"
                 type="number"
-                step="10"
-                min="1"
+                step="any"
+                min="0"
                 placeholder="1000"
                 {...register("amount")}
               />

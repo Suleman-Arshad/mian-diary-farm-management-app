@@ -170,8 +170,8 @@ export function CustomerFormDialog({
               <Input
                 id="fixed_rate_per_kg"
                 type="number"
-                step="0.5"
-                min="1"
+                step="any"
+                min="0"
                 placeholder="180"
                 {...register("fixed_rate_per_kg")}
               />
@@ -187,7 +187,7 @@ export function CustomerFormDialog({
               <Input
                 id="previous_balance"
                 type="number"
-                step="1"
+                step="any"
                 min="0"
                 placeholder="0"
                 disabled={isEditing} // Opening balance only set on creation
