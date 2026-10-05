@@ -25,6 +25,7 @@ import { Label } from "@/components/ui/label";
 import { AuthService } from "@/lib/auth";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { signupSchema, SignupFormValues } from "@/lib/validations";
+import { toast } from "@/components/ui/toast";
 
 export default function SignupPage() {
   const router = useRouter();
@@ -73,9 +74,24 @@ export default function SignupPage() {
         );
       }
     } catch (err: any) {
-      setErrorMsg(
-        err?.message || "Failed to create an account. Please verify details."
-      );
+      if (err) console.error("Supabase Error:", err);
+      const rawMessage = (err?.message || "").toLowerCase();
+      const isEmailRateLimit =
+        rawMessage.includes("email rate limit exceeded") ||
+        rawMessage.includes("rate limit") ||
+        err?.code === "over_email_send_rate_limit" ||
+        err?.status === 429;
+
+      if (isEmailRateLimit) {
+        const friendlyMsg = "Too many signup attempts. Please wait a few minutes or contact support.";
+        setErrorMsg(friendlyMsg);
+        toast.error(friendlyMsg);
+      } else {
+        const fallbackMsg =
+          err?.message || "Failed to create an account. Please verify details.";
+        setErrorMsg(fallbackMsg);
+        toast.error(fallbackMsg);
+      }
     } finally {
       setLoading(false);
     }

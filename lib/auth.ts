@@ -83,6 +83,7 @@ export const AuthService = {
         });
 
         if (error) {
+          console.error("Supabase Error:", error);
           throw new Error(error.message);
         }
 
