@@ -116,24 +116,6 @@ CREATE POLICY "Allow all operations on daily_expenses" ON daily_expenses FOR ALL
 CREATE POLICY "Allow all operations on profiles" ON profiles FOR ALL USING (true) WITH CHECK (true);
 
 -- ==============================================================================
--- SAMPLE INITIAL DATA (Optional - can be run to seed test data)
--- ==============================================================================
-INSERT INTO customers (id, name, phone, address, fixed_rate_per_kg, previous_balance, is_active)
-VALUES 
-  ('a1b2c3d4-0001-0000-0000-000000000001', 'Haji Mohammad Rafiq', '03001234567', 'House 14, Street 5, Model Town', 190.00, 1500.00, true),
-  ('a1b2c3d4-0002-0000-0000-000000000002', 'Dr. Tariq Mahmood', '03217654321', 'Plot 88, Sector G-9', 190.00, 0.00, true),
-  ('a1b2c3d4-0003-0000-0000-000000000003', 'Mrs. Zainab Bibi', '03339876543', 'Flat 4-B, Al-Madina Heights', 185.00, 3200.00, true),
-  ('a1b2c3d4-0004-0000-0000-000000000004', 'Bilal Ahmed Butt', '03124567890', 'Shop #12, Main Bazar', 180.00, 850.00, true),
-  ('a1b2c3d4-0005-0000-0000-000000000005', 'Chaudhry Akram', '03456789012', 'Farm House 3, Canal Road', 185.00, 0.00, true)
-ON CONFLICT (phone) DO NOTHING;
-
-INSERT INTO suppliers (id, supplier_name, phone, purchase_rate_per_kg)
-VALUES
-  ('b1b2c3d4-0001-0000-0000-000000000001', 'Al-Rehman Dairy Farm', '03011112233', 160.00),
-  ('b1b2c3d4-0002-0000-0000-000000000002', 'Green Valley Buffalo Farm', '03022223344', 162.00)
-ON CONFLICT DO NOTHING;
-
--- ==============================================================================
 -- FOREIGN KEY CASCADE ENFORCEMENT (For existing setups)
 -- Run these statements if your database tables were previously created without ON DELETE CASCADE
 -- ==============================================================================
