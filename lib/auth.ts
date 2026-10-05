@@ -179,6 +179,29 @@ export const AuthService = {
         });
 
         if (!error && data.user) {
+          // ── Profile existence check ──────────────────────────────────────
+          // If an admin row was deleted from `profiles` the Supabase Auth user
+          // still exists, so signInWithPassword succeeds. We query profiles
+          // here and reject the login when the record is missing.
+          const { data: profileData, error: profileError } = await supabase
+            .from("profiles")
+            .select("id")
+            .eq("id", data.user.id)
+            .maybeSingle();
+
+          if (profileError) {
+            console.error("Profile lookup error:", profileError);
+          }
+
+          if (!profileData) {
+            // Revoke the newly-created session immediately.
+            await supabase.auth.signOut();
+            throw new Error(
+              "Account not found or access revoked. Please contact support."
+            );
+          }
+          // ────────────────────────────────────────────────────────────────
+
           const adminUser: AdminUser = {
             id: data.user.id,
             email: data.user.email || cleanEmail,
@@ -200,6 +223,10 @@ export const AuthService = {
           console.warn("Supabase auth response:", error.message);
         }
       } catch (err) {
+        // Re-throw access-revoked errors — don't fall through to local auth.
+        if (err instanceof Error && err.message.includes("access revoked")) {
+          throw err;
+        }
         console.warn("Supabase auth exception, checking local accounts", err);
       }
     }
