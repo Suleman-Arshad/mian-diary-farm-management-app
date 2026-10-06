@@ -10,7 +10,7 @@ export type ExpenseCategory =
 export interface Customer {
   id: string;
   name: string;
-  phone?: string | null;
+  phone: string;
   address?: string | null;
   fixed_rate_per_kg: number;
   previous_balance: number;
