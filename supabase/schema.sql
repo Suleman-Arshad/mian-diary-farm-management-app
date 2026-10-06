@@ -9,7 +9,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE TABLE IF NOT EXISTS customers (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     name TEXT NOT NULL,
-    phone TEXT NOT NULL UNIQUE,
+    phone TEXT,
     address TEXT,
     fixed_rate_per_kg NUMERIC(10, 2) NOT NULL DEFAULT 180.00,
     previous_balance NUMERIC(10, 2) NOT NULL DEFAULT 0.00,

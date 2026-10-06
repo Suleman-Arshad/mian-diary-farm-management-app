@@ -4,8 +4,12 @@ export const customerSchema = z.object({
   name: z.string().min(2, "Customer name must be at least 2 characters"),
   phone: z
     .string()
-    .min(10, "Phone number must be at least 10 digits")
-    .regex(/^[0-9+\-\s]+$/, "Please enter a valid phone number"),
+    .optional()
+    .refine(
+      (val) => !val || val.trim() === "" || /^[0-9+\-\s()]{7,}$/.test(val.trim()),
+      { message: "Please enter a valid phone number" }
+    )
+    .transform((val) => val?.trim() || ""),
   address: z.string().optional().default(""),
   fixed_rate_per_kg: z.coerce
     .number()
@@ -74,8 +78,12 @@ export const signupSchema = z
     email: z.string().email("Please enter a valid email address"),
     phone: z
       .string()
-      .min(10, "Phone number must be at least 10 digits")
-      .regex(/^[0-9+\-\s()]+$/, "Please enter a valid phone number"),
+      .optional()
+      .refine(
+        (val) => !val || val.trim() === "" || /^[0-9+\-\s()]{7,}$/.test(val.trim()),
+        { message: "Please enter a valid phone number" }
+      )
+      .transform((val) => val?.trim() || ""),
     password: z
       .string()
       .min(6, "Password must be at least 6 characters long"),

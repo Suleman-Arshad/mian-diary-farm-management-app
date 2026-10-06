@@ -152,7 +152,7 @@ export const DataStore = {
 
     const payload: Record<string, any> = {
       name: String(customer.name).trim(),
-      phone: String(customer.phone).trim(),
+      phone: customer.phone && String(customer.phone).trim() ? String(customer.phone).trim() : null,
       address: customer.address ? String(customer.address).trim() : null,
       fixed_rate_per_kg,
       previous_balance,
