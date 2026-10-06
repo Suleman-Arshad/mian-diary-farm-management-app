@@ -12,9 +12,12 @@ interface WhatsAppShareButtonProps {
 }
 
 export function WhatsAppShareButton({ bill, className }: WhatsAppShareButtonProps) {
+  const hasPhone = Boolean(bill.customer?.phone);
+
   const handleShare = () => {
-    // Clean phone number: remove dashes, spaces, leading 0 replaced with 92 for Pakistan or international format
-    let cleanPhone = bill.customer.phone.replace(/[^0-9]/g, "");
+    // Clean phone number: remove dashes, spaces, leading 0 replaced with 92 for Pakistan
+    const rawPhone = bill.customer.phone || "";
+    let cleanPhone = rawPhone.replace(/[^0-9]/g, "");
     if (cleanPhone.startsWith("0")) {
       cleanPhone = "92" + cleanPhone.substring(1);
     }
@@ -49,7 +52,9 @@ _Please clear your milk dues before the 5th of the month. Thank you for choosing
     <Button
       variant="outline"
       onClick={handleShare}
-      className={`gap-1.5 border-emerald-500 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800 ${className}`}
+      disabled={!hasPhone}
+      title={!hasPhone ? "No phone number on record for this customer" : "Send WhatsApp bill"}
+      className={`gap-1.5 border-emerald-500 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800 disabled:opacity-40 disabled:cursor-not-allowed ${className}`}
     >
       <MessageSquare className="h-4 w-4 text-emerald-600 fill-emerald-100" />
       <span>Send via WhatsApp</span>

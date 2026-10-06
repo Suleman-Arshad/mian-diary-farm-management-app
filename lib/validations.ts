@@ -1,11 +1,37 @@
 import { z } from "zod";
 
+// Reusable optional phone schema:
+// - Allows empty string "", null, or undefined
+// - If value is provided (non-empty), enforces at least 10 digits and valid phone characters
+// - Transforms empty string "" or whitespace to null for clean DB storage
+export const optionalPhoneSchema = z
+  .string()
+  .optional()
+  .nullable()
+  .or(z.literal(""))
+  .refine(
+    (val) => {
+      if (!val || typeof val !== "string" || val.trim() === "") return true;
+      const digitsOnly = val.replace(/\D/g, "");
+      return digitsOnly.length >= 10;
+    },
+    { message: "Phone number must be at least 10 digits" }
+  )
+  .refine(
+    (val) => {
+      if (!val || typeof val !== "string" || val.trim() === "") return true;
+      return /^[0-9+\-\s()]+$/.test(val.trim());
+    },
+    { message: "Please enter a valid phone number" }
+  )
+  .transform((val) => {
+    if (!val || typeof val !== "string" || val.trim() === "") return null;
+    return val.trim();
+  });
+
 export const customerSchema = z.object({
   name: z.string().min(2, "Customer name must be at least 2 characters"),
-  phone: z
-    .string()
-    .min(10, "Phone number must be at least 10 digits")
-    .regex(/^[0-9+\-\s]+$/, "Please enter a valid phone number"),
+  phone: optionalPhoneSchema,
   address: z.string().optional().default(""),
   fixed_rate_per_kg: z.coerce
     .number()
@@ -33,7 +59,7 @@ export type PaymentFormValues = z.infer<typeof paymentSchema>;
 
 export const supplierSchema = z.object({
   supplier_name: z.string().min(2, "Supplier name must be at least 2 characters"),
-  phone: z.string().optional().default(""),
+  phone: optionalPhoneSchema,
   purchase_rate_per_kg: z.coerce
     .number()
     .positive("Purchase rate must be greater than 0"),
@@ -72,10 +98,7 @@ export const signupSchema = z
       .string()
       .min(2, "Dairy or business name must be at least 2 characters"),
     email: z.string().email("Please enter a valid email address"),
-    phone: z
-      .string()
-      .min(10, "Phone number must be at least 10 digits")
-      .regex(/^[0-9+\-\s()]+$/, "Please enter a valid phone number"),
+    phone: optionalPhoneSchema,
     password: z
       .string()
       .min(6, "Password must be at least 6 characters long"),

@@ -168,3 +168,49 @@ BEGIN
     FOREIGN KEY (supplier_id) REFERENCES suppliers(id) ON DELETE CASCADE;
 END $$;
 
+
+-- ==============================================================================
+-- PHONE FIELD MIGRATION — Run once in Supabase SQL Editor for existing databases
+-- Makes the phone column optional (NULL) on all relevant tables and safely drops
+-- the UNIQUE constraint on customers.phone so multiple customers can omit phone.
+-- ==============================================================================
+DO $$
+DECLARE
+  v_constraint_name TEXT;
+BEGIN
+  -- 1. Drop UNIQUE constraint on customers.phone if it exists (name may vary)
+  SELECT constraint_name INTO v_constraint_name
+  FROM information_schema.table_constraints tc
+  JOIN information_schema.constraint_column_usage ccu
+    ON tc.constraint_name = ccu.constraint_name
+  WHERE tc.table_name = 'customers'
+    AND tc.constraint_type = 'UNIQUE'
+    AND ccu.column_name = 'phone'
+  LIMIT 1;
+
+  IF v_constraint_name IS NOT NULL THEN
+    EXECUTE format('ALTER TABLE customers DROP CONSTRAINT %I', v_constraint_name);
+  END IF;
+
+  -- 2. Allow NULL for customers.phone
+  ALTER TABLE customers ALTER COLUMN phone DROP NOT NULL;
+
+  -- 3. Allow NULL for profiles.phone (may already be nullable)
+  BEGIN
+    ALTER TABLE profiles ALTER COLUMN phone DROP NOT NULL;
+  EXCEPTION WHEN others THEN
+    NULL; -- Column is already nullable, skip
+  END;
+
+  -- 4. Allow NULL for admins.phone if that table exists
+  IF EXISTS (
+    SELECT 1 FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name = 'admins'
+  ) THEN
+    BEGIN
+      ALTER TABLE admins ALTER COLUMN phone DROP NOT NULL;
+    EXCEPTION WHEN others THEN
+      NULL;
+    END;
+  END IF;
+END $$;

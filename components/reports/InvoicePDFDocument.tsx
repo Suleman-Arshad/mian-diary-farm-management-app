@@ -215,7 +215,9 @@ export function InvoicePDFDocument({ bill }: { bill: MonthlyBillSummary }) {
             <View style={styles.custCol}>
               <Text style={styles.custLabel}>Customer Details</Text>
               <Text style={styles.custValue}>{customer.name}</Text>
-              <Text style={styles.custSub}>Phone: {customer.phone}</Text>
+              {customer.phone ? (
+                <Text style={styles.custSub}>Phone: {customer.phone}</Text>
+              ) : null}
               {customer.address ? (
                 <Text style={styles.custSub}>Address: {customer.address}</Text>
               ) : null}

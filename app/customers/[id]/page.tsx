@@ -145,10 +145,12 @@ export default function CustomerDetailPage() {
               )}
             </div>
             <div className="flex items-center gap-4 text-xs text-slate-500 mt-1 flex-wrap">
-              <span className="flex items-center gap-1">
-                <Phone className="h-3.5 w-3.5 text-slate-400" />
-                {customer.phone}
-              </span>
+              {customer.phone && (
+                <span className="flex items-center gap-1">
+                  <Phone className="h-3.5 w-3.5 text-slate-400" />
+                  {customer.phone}
+                </span>
+              )}
               {customer.address && (
                 <span className="flex items-center gap-1">
                   <MapPin className="h-3.5 w-3.5 text-slate-400" />

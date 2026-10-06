@@ -6,7 +6,7 @@ export interface AdminUser {
   role: "admin";
   name: string;
   businessName?: string;
-  phone?: string;
+  phone?: string | null;
 }
 
 const AUTH_STORAGE_KEY = "mian_dairy_auth_user";
@@ -23,7 +23,7 @@ interface RegisteredUserRecord {
   email: string;
   password: string;
   businessName: string;
-  phone: string;
+  phone?: string | null;
   role: "admin";
 }
 
@@ -60,11 +60,14 @@ export const AuthService = {
     email: string;
     password: string;
     businessName: string;
-    phone: string;
+    phone?: string | null;
   }): Promise<{ user: AdminUser; hasSession: boolean; message?: string }> {
     const cleanEmail = params.email.trim().toLowerCase();
     const cleanBusinessName = params.businessName.trim();
-    const cleanPhone = params.phone.trim();
+    const cleanPhone =
+      params.phone && typeof params.phone === "string" && params.phone.trim() !== ""
+        ? params.phone.trim()
+        : null;
 
     // 1. Try Supabase Auth if configured
     if (isSupabaseConfigured) {

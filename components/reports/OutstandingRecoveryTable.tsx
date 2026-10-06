@@ -43,6 +43,10 @@ export function OutstandingRecoveryTable({
   );
 
   const handleSendReminder = (customer: Customer) => {
+    if (!customer.phone) {
+      alert(`No phone number on record for ${customer.name}. Please update their profile first.`);
+      return;
+    }
     let cleanPhone = customer.phone.replace(/[^0-9]/g, "");
     if (cleanPhone.startsWith("0")) {
       cleanPhone = "92" + cleanPhone.substring(1);

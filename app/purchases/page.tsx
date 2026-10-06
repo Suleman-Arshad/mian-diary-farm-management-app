@@ -101,7 +101,7 @@ export default function PurchasesPage() {
       await DataStore.saveSupplier({
         ...(supplierToEdit ? { id: supplierToEdit.id } : {}),
         supplier_name: values.supplier_name.trim(),
-        phone: values.phone ? values.phone.trim() : "",
+        phone: values.phone && typeof values.phone === "string" && values.phone.trim() ? values.phone.trim() : null,
         purchase_rate_per_kg: parseFloat(String(values.purchase_rate_per_kg)),
       });
       await loadData();

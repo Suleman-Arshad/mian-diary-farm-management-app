@@ -56,7 +56,7 @@ export function CustomerFormDialog({
     if (customerToEdit) {
       reset({
         name: customerToEdit.name,
-        phone: customerToEdit.phone,
+        phone: customerToEdit.phone || "",
         address: customerToEdit.address || "",
         fixed_rate_per_kg: Number(customerToEdit.fixed_rate_per_kg),
         previous_balance: Number(customerToEdit.previous_balance),
@@ -135,7 +135,7 @@ export function CustomerFormDialog({
 
           {/* Phone */}
           <div className="space-y-1.5">
-            <Label htmlFor="phone">Phone Number (WhatsApp) *</Label>
+            <Label htmlFor="phone">Phone Number (WhatsApp)</Label>
             <Input
               id="phone"
               placeholder="e.g. 03001234567"

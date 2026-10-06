@@ -150,10 +150,20 @@ export const DataStore = {
     const previous_balance = parseFloat(String(customer.previous_balance)) || 0;
     const is_active = customer.is_active !== undefined ? Boolean(customer.is_active) : true;
 
+    const cleanPhone =
+      customer.phone && typeof customer.phone === "string" && customer.phone.trim() !== ""
+        ? customer.phone.trim()
+        : null;
+
+    const cleanAddress =
+      customer.address && typeof customer.address === "string" && customer.address.trim() !== ""
+        ? customer.address.trim()
+        : null;
+
     const payload: Record<string, any> = {
       name: String(customer.name).trim(),
-      phone: String(customer.phone).trim(),
-      address: customer.address ? String(customer.address).trim() : null,
+      phone: cleanPhone,
+      address: cleanAddress,
       fixed_rate_per_kg,
       previous_balance,
       is_active,
@@ -205,6 +215,8 @@ export const DataStore = {
       updatedCustomer = {
         ...customer,
         id: customer.id,
+        phone: cleanPhone,
+        address: cleanAddress,
         fixed_rate_per_kg,
         previous_balance,
         is_active,
@@ -220,6 +232,8 @@ export const DataStore = {
       updatedCustomer = {
         ...customer,
         id: `c-${Date.now()}`,
+        phone: cleanPhone,
+        address: cleanAddress,
         fixed_rate_per_kg,
         previous_balance,
         is_active,
@@ -550,9 +564,13 @@ export const DataStore = {
     supplier: Omit<Supplier, "id" | "created_at"> & { id?: string }
   ): Promise<Supplier> {
     const purchase_rate_per_kg = parseFloat(String(supplier.purchase_rate_per_kg)) || 160;
+    const cleanPhone =
+      supplier.phone && typeof supplier.phone === "string" && supplier.phone.trim() !== ""
+        ? supplier.phone.trim()
+        : null;
     const payload = {
       supplier_name: String(supplier.supplier_name).trim(),
-      phone: supplier.phone ? String(supplier.phone).trim() : null,
+      phone: cleanPhone,
       purchase_rate_per_kg,
     };
 

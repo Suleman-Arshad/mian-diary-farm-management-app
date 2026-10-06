@@ -36,7 +36,7 @@ import { toast } from "@/components/ui/toast";
 interface EntryRowState {
   customer_id: string;
   customer_name: string;
-  phone: string;
+  phone?: string | null;
   fixed_rate: number;
   qty_kg: number | string;
   is_nagha: boolean;
@@ -80,7 +80,7 @@ export default function DailyMilkEntryPage() {
           return {
             customer_id: cust.id,
             customer_name: cust.name,
-            phone: cust.phone,
+            phone: cust.phone || null,
             fixed_rate: cust.fixed_rate_per_kg,
             qty_kg: existing.is_nagha ? 0 : existing.qty_kg,
             is_nagha: existing.is_nagha,
@@ -94,7 +94,7 @@ export default function DailyMilkEntryPage() {
           return {
             customer_id: cust.id,
             customer_name: cust.name,
-            phone: cust.phone,
+            phone: cust.phone || null,
             fixed_rate: cust.fixed_rate_per_kg,
             qty_kg: "", // empty for user to type
             is_nagha: false,

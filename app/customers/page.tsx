@@ -83,7 +83,7 @@ export default function CustomersPage() {
       await DataStore.saveCustomer({
         ...(customerToEdit ? { id: customerToEdit.id } : {}),
         name: values.name,
-        phone: values.phone,
+        phone: values.phone && typeof values.phone === "string" && values.phone.trim() ? values.phone.trim() : null,
         address: values.address,
         fixed_rate_per_kg: parseFloat(String(values.fixed_rate_per_kg)),
         previous_balance: parseFloat(String(values.previous_balance)) || 0,
@@ -148,7 +148,7 @@ export default function CustomersPage() {
   const filteredCustomers = customers.filter((c) => {
     const matchesSearch =
       c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.phone.includes(searchQuery) ||
+      (c.phone?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false) ||
       (c.address && c.address.toLowerCase().includes(searchQuery.toLowerCase()));
 
     if (!matchesSearch) return false;
@@ -327,10 +327,12 @@ export default function CustomersPage() {
                     </TableCell>
                     <TableCell>
                       <div className="text-xs space-y-0.5">
-                        <div className="flex items-center gap-1 text-slate-600">
-                          <Phone className="h-3 w-3 text-slate-400" />
-                          <span>{c.phone}</span>
-                        </div>
+                        {c.phone ? (
+                          <div className="flex items-center gap-1 text-slate-600">
+                            <Phone className="h-3 w-3 text-slate-400" />
+                            <span>{c.phone}</span>
+                          </div>
+                        ) : null}
                         {c.address && (
                           <div className="flex items-center gap-1 text-slate-500">
                             <MapPin className="h-3 w-3 text-slate-400" />
@@ -438,12 +440,14 @@ export default function CustomersPage() {
                       {c.name}
                       <ChevronRight className="h-4 w-4 text-slate-400" />
                     </Link>
-                    <div className="flex items-center gap-2 mt-1 text-xs text-slate-500">
-                      <span className="flex items-center gap-1">
-                        <Phone className="h-3 w-3" />
-                        {c.phone}
-                      </span>
-                    </div>
+                    {c.phone && (
+                      <div className="flex items-center gap-2 mt-1 text-xs text-slate-500">
+                        <span className="flex items-center gap-1">
+                          <Phone className="h-3 w-3" />
+                          {c.phone}
+                        </span>
+                      </div>
+                    )}
                   </div>
                   {/* Badge + delete icon on mobile */}
                   <div className="flex items-center gap-1.5">
