@@ -16,6 +16,8 @@ import {
   Milk,
   ArrowDownRight,
   ArrowUpRight,
+  Loader2,
+  Trash2,
 } from "lucide-react";
 import { Customer, LedgerTransaction } from "@/types/database";
 import { DataStore } from "@/lib/store";
@@ -33,6 +35,14 @@ import {
 import { PaymentDialog } from "@/components/customers/PaymentDialog";
 import { PaymentFormValues } from "@/lib/validations";
 import { toast } from "@/components/ui/toast";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 export default function CustomerDetailPage() {
   const params = useParams();
@@ -48,11 +58,16 @@ export default function CustomerDetailPage() {
   const [loading, setLoading] = React.useState(true);
 
   const [paymentModalOpen, setPaymentModalOpen] = React.useState(false);
+  const [paymentToDelete, setPaymentToDelete] =
+    React.useState<LedgerTransaction | null>(null);
+  const [deletingPaymentId, setDeletingPaymentId] = React.useState<string | null>(
+    null
+  );
 
-  const loadLedger = React.useCallback(async () => {
+  const loadLedger = React.useCallback(async (showLoading = true) => {
     if (!customerId) return;
     try {
-      setLoading(true);
+      if (showLoading) setLoading(true);
       const [ledgerData, customersList] = await Promise.all([
         DataStore.getCustomerLedger(customerId),
         DataStore.getCustomers(),
@@ -66,13 +81,13 @@ export default function CustomerDetailPage() {
     } catch (err) {
       console.error("Failed to load customer ledger", err);
     } finally {
-      setLoading(false);
+      if (showLoading) setLoading(false);
     }
   }, [customerId]);
 
   React.useEffect(() => {
     loadLedger();
-    const handleUpdate = () => loadLedger();
+    const handleUpdate = () => loadLedger(false);
     window.addEventListener("milk-store-updated", handleUpdate);
     return () => window.removeEventListener("milk-store-updated", handleUpdate);
   }, [loadLedger]);
@@ -97,6 +112,34 @@ export default function CustomerDetailPage() {
       const msg = error?.message || "Failed to record payment to database.";
       toast.error(msg);
       throw error;
+    }
+  };
+
+  const handleDeletePayment = async () => {
+    const payment = paymentToDelete?.payment;
+    if (!payment || deletingPaymentId) return;
+
+    setDeletingPaymentId(payment.id);
+    try {
+      await DataStore.deleteCustomerPayment(payment.id);
+      setPaymentToDelete(null);
+      await loadLedger(false);
+      router.refresh();
+      toast.success("Payment deleted successfully");
+    } catch (error: unknown) {
+      console.error("Failed to delete customer payment", error);
+      const message =
+        error instanceof Error
+          ? error.message
+          : typeof error === "object" &&
+              error !== null &&
+              "message" in error &&
+              typeof error.message === "string"
+            ? error.message
+            : "Failed to delete payment.";
+      toast.error(message);
+    } finally {
+      setDeletingPaymentId(null);
     }
   };
 
@@ -265,6 +308,7 @@ export default function CustomerDetailPage() {
                 <TableHead>Debit (Billed)</TableHead>
                 <TableHead>Credit (Paid)</TableHead>
                 <TableHead className="text-right">Running Balance</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -339,12 +383,82 @@ export default function CustomerDetailPage() {
                       {formatCurrency(tx.running_balance)}
                     </span>
                   </TableCell>
+
+                  <TableCell className="text-right">
+                    {tx.type === "PAYMENT" ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="iconSm"
+                        className="text-rose-600 hover:bg-rose-50 hover:text-rose-700"
+                        aria-label={`Delete payment of ${formatCurrency(tx.credit)}`}
+                        title="Delete payment"
+                        disabled={deletingPaymentId !== null}
+                        onClick={() => setPaymentToDelete(tx)}
+                      >
+                        {deletingPaymentId === tx.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Trash2 className="h-4 w-4" />
+                        )}
+                      </Button>
+                    ) : (
+                      <span className="text-slate-300">-</span>
+                    )}
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
         )}
       </div>
+
+      <Dialog
+        open={paymentToDelete !== null}
+        onOpenChange={(open) => {
+          if (deletingPaymentId !== null) return;
+          if (!open) setPaymentToDelete(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-[440px]">
+          <DialogHeader>
+            <DialogTitle>Delete Payment?</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this payment of{" "}
+              {formatCurrency(paymentToDelete?.payment?.amount_paid)}? This
+              action will update the running balance permanently.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={deletingPaymentId !== null}
+              onClick={() => setPaymentToDelete(null)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={deletingPaymentId !== null}
+              onClick={handleDeletePayment}
+            >
+              {deletingPaymentId !== null ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Delete Payment
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Payment Dialog */}
       <PaymentDialog

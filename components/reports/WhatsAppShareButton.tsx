@@ -38,7 +38,7 @@ export function WhatsAppShareButton({ bill, className }: WhatsAppShareButtonProp
 -------------------------------------
 💳 *Payment Methods Accepted:*
 • Cash to Delivery Boy
-• EasyPaisa / JazzCash: *0300-1234567*
+• EasyPaisa / JazzCash: *03007609043*
 • Bank Transfer: Ask for IBAN
 
 _Please clear your milk dues before the 5th of the month. Thank you for choosing Mian Dairy Farm!_`;

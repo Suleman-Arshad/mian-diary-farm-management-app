@@ -484,7 +484,7 @@ export const DataStore = {
   },
 
   async saveCustomerPayment(
-    payment: Omit<CustomerPayment, "id" | "created_at">
+    payment: Omit<CustomerPayment, "created_at"> & { id?: string }
   ): Promise<CustomerPayment> {
     const customer_id = String(payment.customer_id).trim();
     if (!customer_id) {
@@ -505,20 +505,41 @@ export const DataStore = {
     };
 
     if (isSupabaseConfigured) {
-      const { data, error } = await supabase
-        .from("customer_payments")
-        .insert([payload])
-        .select("*, customer:customers(*)")
-        .single();
+      if (payment.id && isUuid(payment.id)) {
+        // UPDATE existing payment
+        const { data, error } = await supabase
+          .from("customer_payments")
+          .update(payload)
+          .eq("id", payment.id)
+          .select("*, customer:customers(*)")
+          .single();
 
-      if (error) {
-        console.error("Supabase Error (insert customer_payments):", error);
-        throw new Error(formatSupabaseError(error));
-      }
+        if (error) {
+          console.error("Supabase Error (update customer_payments):", error);
+          throw new Error(formatSupabaseError(error));
+        }
 
-      if (data) {
-        notifyStoreUpdated();
-        return data as CustomerPayment;
+        if (data) {
+          notifyStoreUpdated();
+          return data as CustomerPayment;
+        }
+      } else {
+        // INSERT new payment
+        const { data, error } = await supabase
+          .from("customer_payments")
+          .insert([payload])
+          .select("*, customer:customers(*)")
+          .single();
+
+        if (error) {
+          console.error("Supabase Error (insert customer_payments):", error);
+          throw new Error(formatSupabaseError(error));
+        }
+
+        if (data) {
+          notifyStoreUpdated();
+          return data as CustomerPayment;
+        }
       }
     }
 
@@ -526,14 +547,58 @@ export const DataStore = {
       STORAGE_KEYS.PAYMENTS,
       initialCustomerPayments
     );
+
+    if (payment.id) {
+      const idx = payments.findIndex((p) => p.id === payment.id);
+      if (idx >= 0) {
+        const updatedPayment: CustomerPayment = {
+          ...payments[idx],
+          ...payload,
+        };
+        payments[idx] = updatedPayment;
+        setLocal(STORAGE_KEYS.PAYMENTS, payments);
+        return updatedPayment;
+      }
+    }
+
     const newPayment: CustomerPayment = {
       ...payload,
-      id: `p-${Date.now()}`,
+      id: payment.id || `p-${Date.now()}`,
       created_at: new Date().toISOString(),
     };
     payments.unshift(newPayment);
     setLocal(STORAGE_KEYS.PAYMENTS, payments);
     return newPayment;
+  },
+
+  async deleteCustomerPayment(id: string): Promise<boolean> {
+    if (isSupabaseConfigured && isUuid(id)) {
+      try {
+        const { error } = await supabase
+          .from("customer_payments")
+          .delete()
+          .eq("id", id);
+
+        if (error) {
+          console.error("Supabase Error (delete customer_payments):", error);
+          throw new Error(formatSupabaseError(error));
+        }
+        notifyStoreUpdated();
+        return true;
+      } catch (e: any) {
+        console.error("Supabase exception in deleteCustomerPayment:", e);
+        throw e;
+      }
+    }
+
+    const payments = getLocal<CustomerPayment[]>(
+      STORAGE_KEYS.PAYMENTS,
+      initialCustomerPayments
+    );
+    const filtered = payments.filter((p) => p.id !== id);
+    setLocal(STORAGE_KEYS.PAYMENTS, filtered);
+    notifyStoreUpdated();
+    return true;
   },
 
   // -------------------------------------------------------------
@@ -968,6 +1033,7 @@ export const DataStore = {
           debit: 0,
           credit: credit,
           running_balance: running,
+          payment: payment,
         });
       }
     }
@@ -979,6 +1045,38 @@ export const DataStore = {
       totalDeliveriesCost,
       totalPaid,
     };
+  },
+
+  async getCustomerBalances(): Promise<Map<string, number>> {
+    const [customers, sales, payments] = await Promise.all([
+      this.getCustomers(),
+      this.getAllDailySales(),
+      this.getCustomerPayments(),
+    ]);
+    const balances = new Map(
+      customers.map((customer) => [
+        customer.id,
+        Number(customer.previous_balance) || 0,
+      ])
+    );
+
+    for (const sale of sales) {
+      if (!sale.is_nagha) {
+        balances.set(
+          sale.customer_id,
+          (balances.get(sale.customer_id) || 0) + Number(sale.total_amount)
+        );
+      }
+    }
+
+    for (const payment of payments) {
+      balances.set(
+        payment.customer_id,
+        (balances.get(payment.customer_id) || 0) - Number(payment.amount_paid)
+      );
+    }
+
+    return balances;
   },
 
   // -------------------------------------------------------------

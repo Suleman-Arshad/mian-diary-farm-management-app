@@ -36,6 +36,9 @@ import { CustomerFormValues, PaymentFormValues } from "@/lib/validations";
 
 export default function CustomersPage() {
   const [customers, setCustomers] = React.useState<Customer[]>([]);
+  const [customerBalances, setCustomerBalances] = React.useState<Map<string, number>>(
+    new Map()
+  );
   const [loading, setLoading] = React.useState(true);
   const [searchQuery, setSearchQuery] = React.useState("");
   const [filterActive, setFilterActive] = React.useState<"ALL" | "ACTIVE" | "INACTIVE">("ALL");
@@ -61,8 +64,12 @@ export default function CustomersPage() {
   const loadData = React.useCallback(async () => {
     try {
       setLoading(true);
-      const data = await DataStore.getCustomers();
+      const [data, balances] = await Promise.all([
+        DataStore.getCustomers(),
+        DataStore.getCustomerBalances(),
+      ]);
       setCustomers(data);
+      setCustomerBalances(balances);
     } catch (err) {
       console.error(err);
     } finally {
@@ -159,7 +166,7 @@ export default function CustomersPage() {
   });
 
   const totalOutstanding = customers.reduce(
-    (sum, c) => sum + (Number(c.previous_balance) || 0),
+    (sum, c) => sum + (customerBalances.get(c.id) || 0),
     0
   );
   const activeCount = customers.filter((c) => c.is_active).length;
@@ -234,7 +241,7 @@ export default function CustomersPage() {
           <p className="text-xl sm:text-2xl font-bold text-sky-600 mt-1">{activeCount}</p>
         </div>
         <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm col-span-2 sm:col-span-1 lg:col-span-2">
-          <span className="text-xs font-medium text-slate-500">Total Opening / Pending Balance</span>
+          <span className="text-xs font-medium text-slate-500">Total Outstanding Balance</span>
           <p className="text-xl sm:text-2xl font-bold text-rose-600 mt-1">
             {formatCurrency(totalOutstanding)}
           </p>
@@ -350,12 +357,12 @@ export default function CustomersPage() {
                     <TableCell>
                       <span
                         className={`font-bold ${
-                          Number(c.previous_balance) > 0
+                          (customerBalances.get(c.id) || 0) > 0
                             ? "text-rose-600"
                             : "text-emerald-600"
                         }`}
                       >
-                        {formatCurrency(c.previous_balance)}
+                        {formatCurrency(customerBalances.get(c.id) || 0)}
                       </span>
                     </TableCell>
                     <TableCell>
@@ -485,10 +492,12 @@ export default function CustomersPage() {
                     <span className="text-slate-500">Balance: </span>
                     <span
                       className={`font-bold ${
-                        Number(c.previous_balance) > 0 ? "text-rose-600" : "text-emerald-600"
+                        (customerBalances.get(c.id) || 0) > 0
+                          ? "text-rose-600"
+                          : "text-emerald-600"
                       }`}
                     >
-                      {formatCurrency(c.previous_balance)}
+                      {formatCurrency(customerBalances.get(c.id) || 0)}
                     </span>
                   </div>
                 </div>

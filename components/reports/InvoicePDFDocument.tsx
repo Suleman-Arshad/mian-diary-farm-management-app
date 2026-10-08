@@ -4,6 +4,7 @@ import {
   Page,
   Text,
   View,
+  Image,
   StyleSheet,
 } from "@react-pdf/renderer";
 import { MonthlyBillSummary } from "@/types/database";
@@ -20,11 +21,21 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "flex-start",
+    alignItems: "center",
     borderBottomWidth: 2,
     borderBottomColor: "#0284c7",
     paddingBottom: 15,
     marginBottom: 15,
+  },
+  headerLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  logo: {
+    width: 60,
+    height: 60,
+    marginRight: 12,
+    borderRadius: 30, // Round monogram appearance
   },
   titleContainer: {
     flexDirection: "column",
@@ -193,13 +204,18 @@ export function InvoicePDFDocument({ bill }: { bill: MonthlyBillSummary }) {
       <Page size="A4" style={styles.page}>
         {/* Header */}
         <View style={styles.header}>
-          <View style={styles.titleContainer}>
-            <Text style={styles.brandName}>Mian Dairy Farm</Text>
-            <Text style={styles.brandSub}>
-              Fresh Farm Milk Daily Supply & Distribution
-            </Text>
-            <Text style={styles.brandSub}>Helpline / Support: 0314-6532458</Text>
+          <View style={styles.headerLeft}>
+            {/* Top Left Monogram / Logo */}
+            <Image src="/monogram.jpeg" style={styles.logo} />
+            <View style={styles.titleContainer}>
+              <Text style={styles.brandName}>Mian Dairy Farm</Text>
+              <Text style={styles.brandSub}>
+                Fresh Farm Milk Daily Supply & Distribution
+              </Text>
+              <Text style={styles.brandSub}>Helpline / Support: 0300-7609043</Text>
+            </View>
           </View>
+
           <View style={styles.invoiceMeta}>
             <Text style={styles.invoiceTitle}>MONTHLY MILK BILL</Text>
             <Text style={styles.invoiceDate}>Billing Month: {monthName}</Text>
