@@ -83,6 +83,7 @@ export interface LedgerTransaction {
   debit: number; // charge to customer
   credit: number; // payment from customer
   running_balance: number;
+  payment?: CustomerPayment;
 }
 
 // Reconciliation summary

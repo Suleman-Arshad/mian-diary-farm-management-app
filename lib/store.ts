@@ -536,6 +536,51 @@ export const DataStore = {
     return newPayment;
   },
 
+  async deleteCustomerPayment(paymentId: string): Promise<void> {
+    const id = paymentId.trim();
+    if (!id) {
+      throw new Error("A payment ID is required.");
+    }
+
+    if (isSupabaseConfigured) {
+      if (!isUuid(id)) {
+        throw new Error("The payment ID is not a valid UUID.");
+      }
+
+      try {
+        const { data, error } = await supabase
+          .from("customer_payments")
+          .delete()
+          .eq("id", id)
+          .select("id");
+
+        if (error) throw error;
+        if (!data || data.length === 0) {
+          throw new Error(
+            "Payment was not deleted. It may no longer exist, or Supabase permissions may block this operation."
+          );
+        }
+
+        notifyStoreUpdated();
+      } catch (error) {
+        console.error("Delete Error:", error);
+        throw new Error(formatSupabaseError(error));
+      }
+      return;
+    }
+
+    const payments = getLocal<CustomerPayment[]>(
+      STORAGE_KEYS.PAYMENTS,
+      initialCustomerPayments
+    );
+    const remainingPayments = payments.filter((payment) => payment.id !== id);
+    if (remainingPayments.length === payments.length) {
+      throw new Error("Payment not found in local data.");
+    }
+    setLocal(STORAGE_KEYS.PAYMENTS, remainingPayments);
+    notifyStoreUpdated();
+  },
+
   // -------------------------------------------------------------
   // SUPPLIERS & PURCHASES
   // -------------------------------------------------------------
@@ -968,6 +1013,7 @@ export const DataStore = {
           debit: 0,
           credit: credit,
           running_balance: running,
+          payment,
         });
       }
     }
@@ -979,6 +1025,38 @@ export const DataStore = {
       totalDeliveriesCost,
       totalPaid,
     };
+  },
+
+  async getCustomerBalances(): Promise<Map<string, number>> {
+    const [customers, sales, payments] = await Promise.all([
+      this.getCustomers(),
+      this.getAllDailySales(),
+      this.getCustomerPayments(),
+    ]);
+    const balances = new Map(
+      customers.map((customer) => [
+        customer.id,
+        Number(customer.previous_balance) || 0,
+      ])
+    );
+
+    for (const sale of sales) {
+      if (!sale.is_nagha) {
+        balances.set(
+          sale.customer_id,
+          (balances.get(sale.customer_id) || 0) + Number(sale.total_amount)
+        );
+      }
+    }
+
+    for (const payment of payments) {
+      balances.set(
+        payment.customer_id,
+        (balances.get(payment.customer_id) || 0) - Number(payment.amount_paid)
+      );
+    }
+
+    return balances;
   },
 
   // -------------------------------------------------------------

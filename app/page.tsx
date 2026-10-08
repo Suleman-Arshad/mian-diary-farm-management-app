@@ -44,6 +44,9 @@ export default function DashboardPage() {
 
   const [loading, setLoading] = React.useState(true);
   const [customers, setCustomers] = React.useState<Customer[]>([]);
+  const [customerBalances, setCustomerBalances] = React.useState<Map<string, number>>(
+    new Map()
+  );
   const [todaySales, setTodaySales] = React.useState<DailySale[]>([]);
   const [todayPurchases, setTodayPurchases] = React.useState<DailyPurchase[]>([]);
   const [todayExpenses, setTodayExpenses] = React.useState<DailyExpense[]>([]);
@@ -56,7 +59,16 @@ export default function DashboardPage() {
   const loadDashboardData = React.useCallback(async () => {
     try {
       setLoading(true);
-      const [custList, salesList, purList, expList, payList, reconData, supList] =
+      const [
+        custList,
+        salesList,
+        purList,
+        expList,
+        payList,
+        reconData,
+        supList,
+        balances,
+      ] =
         await Promise.all([
           DataStore.getCustomers(),
           DataStore.getDailySalesByDate(todayStr, true),
@@ -65,6 +77,7 @@ export default function DashboardPage() {
           DataStore.getCustomerPayments(),
           DataStore.getDailyReconciliation(todayStr),
           DataStore.getSuppliers(),
+          DataStore.getCustomerBalances(),
         ]);
 
       const activeCustMap = new Map(
@@ -86,6 +99,7 @@ export default function DashboardPage() {
         }));
 
       setCustomers(custList);
+      setCustomerBalances(balances);
       setTodaySales(validTodaySales);
       setTodayPurchases(validTodayPurchases);
       setTodayExpenses(expList.filter((e) => e.expense_date === todayStr));
@@ -141,7 +155,7 @@ export default function DashboardPage() {
   const naghaCount = todaySales.filter((s) => s.is_nagha).length;
 
   const totalOutstandingBalance = customers.reduce(
-    (sum, c) => sum + Number(c.previous_balance || 0),
+    (sum, c) => sum + (customerBalances.get(c.id) || 0),
     0
   );
 
