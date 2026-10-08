@@ -25,8 +25,7 @@ interface PaymentDialogProps {
   onOpenChange: (open: boolean) => void;
   customers: Customer[];
   preselectedCustomerId?: string;
-  paymentToEdit?: CustomerPayment | null;
-  onSavePayment: (values: PaymentFormValues & { id?: string }) => Promise<void>;
+  onSavePayment: (values: PaymentFormValues) => Promise<void>;
 }
 
 export function PaymentDialog({
@@ -34,7 +33,6 @@ export function PaymentDialog({
   onOpenChange,
   customers,
   preselectedCustomerId,
-  paymentToEdit,
   onSavePayment,
 }: PaymentDialogProps) {
   const [submitting, setSubmitting] = React.useState(false);
@@ -61,30 +59,18 @@ export function PaymentDialog({
   const selectedCustomerId = watch("customer_id");
   const selectedCustomer = customers.find((c) => c.id === selectedCustomerId);
 
-  const isEditing = Boolean(paymentToEdit);
-
   React.useEffect(() => {
     if (open) {
-      if (paymentToEdit) {
-        reset({
-          customer_id: paymentToEdit.customer_id,
-          payment_date: paymentToEdit.payment_date,
-          amount_paid: Number(paymentToEdit.amount_paid),
-          payment_mode: paymentToEdit.payment_mode,
-          notes: paymentToEdit.notes || "",
-        });
-      } else {
-        reset({
-          customer_id: preselectedCustomerId || (customers[0]?.id ?? ""),
-          payment_date: getTodayDateString(),
-          amount_paid: 0,
-          payment_mode: "Cash",
-          notes: "",
-        });
-      }
+      reset({
+        customer_id: preselectedCustomerId || (customers[0]?.id ?? ""),
+        payment_date: getTodayDateString(),
+        amount_paid: 0,
+        payment_mode: "Cash",
+        notes: "",
+      });
       setErrorMsg(null);
     }
-  }, [open, preselectedCustomerId, customers, paymentToEdit, reset]);
+  }, [open, preselectedCustomerId, customers, reset]);
 
   const onSubmit = async (values: PaymentFormValues) => {
     try {
@@ -98,14 +84,13 @@ export function PaymentDialog({
 
       await onSavePayment({
         ...values,
-        id: paymentToEdit?.id,
         customer_id,
         amount_paid: parseFloat(String(values.amount_paid)),
       });
       onOpenChange(false);
     } catch (err: any) {
       if (err) console.error("Supabase Error:", err);
-      setErrorMsg(err?.message || "Failed to save payment.");
+      setErrorMsg(err?.message || "Failed to record payment.");
     } finally {
       setSubmitting(false);
     }
@@ -117,14 +102,10 @@ export function PaymentDialog({
         <DialogHeader>
           <div className="flex items-center gap-2 text-emerald-600 mb-1">
             <Wallet className="h-5 w-5" />
-            <DialogTitle>
-              {isEditing ? "Edit Customer Payment" : "Record Customer Payment"}
-            </DialogTitle>
+            <DialogTitle>Record Customer Payment</DialogTitle>
           </div>
           <DialogDescription>
-            {isEditing
-              ? "Update payment amount, date, method, or reference notes."
-              : "Log a recovery payment to deduct from customer ledger balance."}
+            Log a recovery payment to deduct from customer ledger balance.
           </DialogDescription>
         </DialogHeader>
 
@@ -223,14 +204,7 @@ export function PaymentDialog({
               Cancel
             </Button>
             <Button type="submit" variant="success" disabled={submitting}>
-              {submitting ? (
-                <div className="flex items-center gap-2">
-                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                  <span>{isEditing ? "Updating..." : "Saving..."}</span>
-                </div>
-              ) : (
-                <span>{isEditing ? "Update Payment" : "Record Payment"}</span>
-              )}
+              {submitting ? "Saving..." : "Record Payment"}
             </Button>
           </DialogFooter>
         </form>
