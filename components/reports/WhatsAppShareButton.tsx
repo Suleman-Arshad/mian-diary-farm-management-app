@@ -1,10 +1,13 @@
 "use client";
 
 import * as React from "react";
-import { MessageSquare, Share2 } from "lucide-react";
+import { MessageSquare, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { MonthlyBillSummary } from "@/types/database";
 import { formatCurrency, formatKg } from "@/lib/utils";
+import { pdf } from "@react-pdf/renderer";
+import { InvoicePDFDocument } from "@/components/reports/InvoicePDFDocument"; // Ensure correct import path
+import { toast } from "sonner"; // Or your project's toast library
 
 interface WhatsAppShareButtonProps {
   bill: MonthlyBillSummary;
@@ -12,52 +15,75 @@ interface WhatsAppShareButtonProps {
 }
 
 export function WhatsAppShareButton({ bill, className }: WhatsAppShareButtonProps) {
+  const [loading, setLoading] = React.useState(false);
   const hasPhone = Boolean(bill.customer?.phone);
 
-  const handleShare = () => {
-    // Clean phone number: remove dashes, spaces, leading 0 replaced with 92 for Pakistan
-    const rawPhone = bill.customer.phone || "";
-    let cleanPhone = rawPhone.replace(/[^0-9]/g, "");
-    if (cleanPhone.startsWith("0")) {
-      cleanPhone = "92" + cleanPhone.substring(1);
+  const handleShare = async () => {
+    if (!hasPhone) return;
+    setLoading(true);
+
+    try {
+      // 1. Clean Phone Number
+      const rawPhone = bill.customer.phone || "";
+      let cleanPhone = rawPhone.replace(/[^0-9]/g, "");
+      if (cleanPhone.startsWith("0")) {
+        cleanPhone = "92" + cleanPhone.substring(1);
+      }
+
+      // 2. Draft Summary Text
+      const messageText = `*MIAN DAIRY FARM - MONTHLY BILL* 🥛\nCustomer: ${bill.customer.name}\nBilling Month: ${bill.monthName}\nNet Payable: ${formatCurrency(bill.netPayableAmount)}\n\nPlease find your itemized PDF bill attached below. Thank you!`;
+
+      // 3. Generate PDF Blob in Memory (No Local Download)
+      const pdfBlob = await pdf(<InvoicePDFDocument bill={bill} />).toBlob();
+      const fileName = `Milk_Bill_${bill.customer.name.replace(/\s+/g, "_")}_${bill.monthName}.pdf`;
+      const file = new File([pdfBlob], fileName, { type: "application/pdf" });
+
+      // 4. Mobile Devices: Native Web Share API
+      if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          title: `Milk Bill - ${bill.customer.name}`,
+          text: messageText,
+        });
+        toast.success("Bill shared successfully!");
+      } else {
+        // 5. Desktop Fallback: Open WhatsApp Chat with Pre-filled Text
+        const encodedText = encodeURIComponent(messageText);
+        const whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodedText}`;
+        window.open(whatsappUrl, "_blank", "noopener,noreferrer");
+
+        // Optional: Trigger direct in-memory download if browser blocks direct file sharing
+        const url = URL.createObjectURL(pdfBlob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = fileName;
+        a.click();
+        URL.revokeObjectURL(url);
+
+        toast.info("WhatsApp chat opened & PDF generated for easy attachment.");
+      }
+    } catch (error) {
+      console.error("Error sharing PDF via WhatsApp:", error);
+      toast.error("Failed to share PDF. Please try again.");
+    } finally {
+      setLoading(false);
     }
-
-    const message = `*MIAN DAIRY FARM - MONTHLY BILL* 🥛
--------------------------------------
-*Customer:* ${bill.customer.name}
-*Billing Month:* ${bill.monthName}
-
-📊 *Bill Summary:*
-• Total Milk Supplied: *${formatKg(bill.totalQtyKg)}*
-• Rate / KG: *Rs. ${bill.customer.fixed_rate_per_kg}*
-• This Month Charges: *${formatCurrency(bill.totalMilkCost)}*
-• Previous Balance: *${formatCurrency(bill.previousBalance)}*
-• Total Payments Made: *- ${formatCurrency(bill.totalPayments)}*
-
-💰 *TOTAL NET PAYABLE: ${formatCurrency(bill.netPayableAmount)}*
--------------------------------------
-💳 *Payment Methods Accepted:*
-• Cash to Delivery Boy
-• EasyPaisa / JazzCash: *03007609043*
-• Bank Transfer: Ask for IBAN
-
-_Please clear your milk dues before the 5th of the month. Thank you for choosing Mian Dairy Farm!_`;
-
-    const encodedText = encodeURIComponent(message);
-    const whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodedText}`;
-    window.open(whatsappUrl, "_blank", "noopener,noreferrer");
   };
 
   return (
     <Button
       variant="outline"
       onClick={handleShare}
-      disabled={!hasPhone}
+      disabled={!hasPhone || loading}
       title={!hasPhone ? "No phone number on record for this customer" : "Send WhatsApp bill"}
       className={`gap-1.5 border-emerald-500 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800 disabled:opacity-40 disabled:cursor-not-allowed ${className}`}
     >
-      <MessageSquare className="h-4 w-4 text-emerald-600 fill-emerald-100" />
-      <span>Send via WhatsApp</span>
+      {loading ? (
+        <Loader2 className="h-4 w-4 animate-spin text-emerald-600" />
+      ) : (
+        <MessageSquare className="h-4 w-4 text-emerald-600 fill-emerald-100" />
+      )}
+      <span>{loading ? "Preparing PDF..." : "Send via WhatsApp"}</span>
     </Button>
   );
 }
