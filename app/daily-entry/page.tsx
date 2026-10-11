@@ -11,6 +11,8 @@ import {
   RotateCcw,
   Sparkles,
   Info,
+  FileText,
+  Loader2,
 } from "lucide-react";
 import { Customer, DailySale } from "@/types/database";
 import { DataStore } from "@/lib/store";
@@ -32,6 +34,10 @@ import {
   TableCell,
 } from "@/components/ui/table";
 import { toast } from "@/components/ui/toast";
+import {
+  DailyReportPDFDocument,
+  type DailyReportDelivery,
+} from "@/components/reports/DailyReportPDFDocument";
 
 interface EntryRowState {
   customer_id: string;
@@ -52,6 +58,7 @@ export default function DailyMilkEntryPage() {
   const [rows, setRows] = React.useState<EntryRowState[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
+  const [generatingPDF, setGeneratingPDF] = React.useState(false);
   const [saveSuccess, setSaveSuccess] = React.useState(false);
   const [statusMessage, setStatusMessage] = React.useState<string | null>(null);
 
@@ -279,6 +286,70 @@ export default function DailyMilkEntryPage() {
     (r) => !r.is_nagha && (parseFloat(String(r.qty_kg)) || 0) > 0
   ).length;
 
+  const handleDownloadDailyReport = async () => {
+    try {
+      setGeneratingPDF(true);
+      const [dailyExpenses, dailyPurchases] = await Promise.all([
+        DataStore.getDailyExpenses(),
+        DataStore.getDailyPurchases(),
+      ]);
+      const totalExpenses = dailyExpenses
+        .filter((expense) => expense.expense_date === selectedDate)
+        .reduce((sum, expense) => sum + Number(expense.amount), 0);
+      const totalFarmIntake = dailyPurchases
+        .filter((purchase) => purchase.purchase_date === selectedDate)
+        .reduce((sum, purchase) => sum + Number(purchase.qty_kg), 0);
+      const naghaCustomers = rows
+        .filter((row) => row.is_nagha)
+        .map((row) => row.customer_name);
+      const deliveries: DailyReportDelivery[] = rows.flatMap((row) => {
+        const quantityKg = row.is_nagha
+          ? 0
+          : parseFloat(String(row.qty_kg)) || 0;
+        if (quantityKg <= 0) return [];
+
+        const ratePerKg = row.use_custom_rate
+          ? parseFloat(String(row.custom_rate)) || row.fixed_rate
+          : row.fixed_rate;
+
+        return [{
+          customerId: row.customer_id,
+          customerName: row.customer_name,
+          quantityKg,
+          ratePerKg,
+          totalAmount: row.total_amount,
+        }];
+      });
+
+      const { pdf } = await import("@react-pdf/renderer");
+      const blob = await pdf(
+        <DailyReportPDFDocument
+          date={selectedDate}
+          deliveries={deliveries}
+          naghaCustomers={naghaCustomers}
+          totalFarmIntake={totalFarmIntake}
+          totalMilkKg={totalKgs}
+          totalRevenue={totalAmount}
+          totalExpenses={totalExpenses}
+        />
+      ).toBlob();
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `Daily_Report_${selectedDate}.pdf`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      document.body.removeChild(anchor);
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      toast.success("Daily report downloaded successfully.");
+    } catch (error) {
+      console.error("Failed to generate daily report PDF:", error);
+      toast.error("Failed to generate the daily report PDF. Please try again.");
+    } finally {
+      setGeneratingPDF(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header and Date Selector */}
@@ -304,6 +375,20 @@ export default function DailyMilkEntryPage() {
               className="text-xs sm:text-sm font-semibold text-slate-800 bg-transparent focus:outline-none"
             />
           </div>
+
+          <Button
+            variant="outline"
+            className="gap-2 shadow-sm"
+            onClick={handleDownloadDailyReport}
+            disabled={generatingPDF || loading}
+          >
+            {generatingPDF ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <FileText className="h-4 w-4" />
+            )}
+            <span>{generatingPDF ? "Generating PDF..." : "Download Daily Report PDF"}</span>
+          </Button>
 
           <Button
             variant="dairy"
