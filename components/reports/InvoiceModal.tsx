@@ -12,8 +12,9 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { formatCurrency, formatKg, formatDateDisplay } from "@/lib/utils";
-import { FileText, Download, CheckCircle2, Loader2 } from "lucide-react";
+import { FileText, Download, Loader2, Printer } from "lucide-react";
 import { InvoicePDFDocument } from "./InvoicePDFDocument";
+import { printPdfDocument } from "@/lib/printPdf";
 
 interface InvoiceModalProps {
   open: boolean;
@@ -23,6 +24,7 @@ interface InvoiceModalProps {
 
 export function InvoiceModal({ open, onOpenChange, bill }: InvoiceModalProps) {
   const [downloading, setDownloading] = React.useState(false);
+  const [printing, setPrinting] = React.useState(false);
 
   if (!bill) return null;
 
@@ -47,6 +49,21 @@ export function InvoiceModal({ open, onOpenChange, bill }: InvoiceModalProps) {
       alert("Error generating PDF. Please try again.");
     } finally {
       setDownloading(false);
+    }
+  };
+
+  const handlePrintPDF = async () => {
+    try {
+      setPrinting(true);
+      await printPdfDocument(
+        <InvoicePDFDocument bill={bill} />,
+        `Milk Bill - ${bill.customer.name} - ${bill.monthName}`
+      );
+    } catch (err) {
+      console.error("Failed to print invoice PDF", err);
+      alert(err instanceof Error ? err.message : "Error printing PDF. Please try again.");
+    } finally {
+      setPrinting(false);
     }
   };
 
@@ -145,11 +162,25 @@ export function InvoiceModal({ open, onOpenChange, bill }: InvoiceModalProps) {
             Close
           </Button>
 
+          <Button
+            variant="outline"
+            onClick={handlePrintPDF}
+            disabled={printing || downloading}
+            className="gap-2"
+          >
+            {printing ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Printer className="h-4 w-4" />
+            )}
+            <span>{printing ? "Preparing..." : "Print PDF"}</span>
+          </Button>
+
           {/* Imperative PDF Download Button */}
           <Button
             variant="dairy"
             onClick={handleDownloadPDF}
-            disabled={downloading}
+            disabled={downloading || printing}
             className="gap-2"
           >
             {downloading ? (

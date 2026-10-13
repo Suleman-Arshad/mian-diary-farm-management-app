@@ -14,6 +14,8 @@ import {
   AlertCircle,
   Milk,
   Share2,
+  Printer,
+  Loader2,
 } from "lucide-react";
 import {
   Customer,
@@ -33,6 +35,9 @@ import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { InvoiceModal } from "@/components/reports/InvoiceModal";
+import { InvoicePDFDocument } from "@/components/reports/InvoicePDFDocument";
+import { printPdfDocument } from "@/lib/printPdf";
+import { QuickManualBillModal } from "@/components/reports/QuickManualBillModal";
 import { WhatsAppShareButton } from "@/components/reports/WhatsAppShareButton";
 import { OutstandingRecoveryTable } from "@/components/reports/OutstandingRecoveryTable";
 import { ProfitLossStatement } from "@/components/reports/ProfitLossStatement";
@@ -56,6 +61,8 @@ function ReportsContent() {
 
   // Modals
   const [invoiceModalOpen, setInvoiceModalOpen] = React.useState(false);
+  const [printingMonthlyBill, setPrintingMonthlyBill] = React.useState(false);
+  const [quickManualBillOpen, setQuickManualBillOpen] = React.useState(false);
   const [paymentModalOpen, setPaymentModalOpen] = React.useState(false);
   const [paymentTargetCustId, setPaymentTargetCustId] = React.useState<string | undefined>();
 
@@ -111,6 +118,26 @@ function ReportsContent() {
     await loadData();
   };
 
+  const handlePrintMonthlyBill = async () => {
+    if (!billSummary) return;
+    try {
+      setPrintingMonthlyBill(true);
+      await printPdfDocument(
+        <InvoicePDFDocument bill={billSummary} />,
+        `Milk Bill - ${billSummary.customer.name} - ${billSummary.monthName}`
+      );
+    } catch (error) {
+      console.error("Failed to print monthly bill PDF", error);
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Error printing PDF. Please try again."
+      );
+    } finally {
+      setPrintingMonthlyBill(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -137,7 +164,7 @@ function ReportsContent() {
         {/* TAB 1: MONTHLY BILL CALCULATOR */}
         <TabsContent value="bill" className="space-y-6">
           {/* Controls: Select Customer & Month */}
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_auto] gap-4 items-end">
             <div>
               <label className="text-xs font-semibold text-slate-700 block mb-1.5">
                 Select Customer:
@@ -165,6 +192,16 @@ function ReportsContent() {
                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-ring"
               />
             </div>
+
+            <Button
+              variant="outline"
+              className="gap-2 border-sky-200 text-sky-700 hover:bg-sky-50"
+              onClick={() => setQuickManualBillOpen(true)}
+              disabled={customers.length === 0}
+            >
+              <Receipt className="h-4 w-4" />
+              Quick Manual Bill
+            </Button>
           </div>
 
           {billSummary ? (
@@ -193,6 +230,20 @@ function ReportsContent() {
                     >
                       <Download className="h-4 w-4" />
                       <span>Download PDF Bill</span>
+                    </Button>
+
+                    <Button
+                      variant="outline"
+                      className="gap-2"
+                      onClick={handlePrintMonthlyBill}
+                      disabled={printingMonthlyBill}
+                    >
+                      {printingMonthlyBill ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Printer className="h-4 w-4" />
+                      )}
+                      <span>{printingMonthlyBill ? "Preparing..." : "Print PDF"}</span>
                     </Button>
 
                     <WhatsAppShareButton bill={billSummary} />
@@ -356,6 +407,13 @@ function ReportsContent() {
         open={invoiceModalOpen}
         onOpenChange={setInvoiceModalOpen}
         bill={billSummary}
+      />
+
+      <QuickManualBillModal
+        open={quickManualBillOpen}
+        onOpenChange={setQuickManualBillOpen}
+        customers={customers}
+        initialCustomerId={selectedCustomerId}
       />
 
       {/* Payment Dialog */}
