@@ -29,6 +29,8 @@ const STORAGE_KEYS = {
   EXPENSES: "milk_dairy_expenses",
 };
 
+const SUPABASE_PAGE_SIZE = 1000;
+
 // Helper: check if a string is a standard UUID
 function isUuid(id?: string | null): boolean {
   if (!id) return false;
@@ -327,7 +329,10 @@ export const DataStore = {
       }));
   },
 
-  async getAllDailySales(activeOnly: boolean = false): Promise<DailySale[]> {
+  async getAllDailySales(
+    activeOnly: boolean = false,
+    customerId?: string
+  ): Promise<DailySale[]> {
     sanitizeLocalStore();
     const customers = await this.getCustomers();
     const validCustomers = activeOnly ? customers.filter((c) => c.is_active) : customers;
@@ -335,21 +340,33 @@ export const DataStore = {
 
     if (isSupabaseConfigured) {
       try {
-        const { data, error } = await supabase
-          .from("daily_sales")
-          .select("*, customer:customers(*)")
-          .order("entry_date", { ascending: false });
+        const sales: DailySale[] = [];
+        let offset = 0;
 
-        if (error) {
-          console.error("Supabase Error in getAllDailySales:", error);
-        } else if (data) {
-          return (data as DailySale[])
-            .filter((s) => customerMap.has(s.customer_id))
-            .map((s) => ({
-              ...s,
-              customer: customerMap.get(s.customer_id) || s.customer,
-            }));
+        while (true) {
+          let query = supabase
+            .from("daily_sales")
+            .select("*, customer:customers(*)");
+          if (customerId) query = query.eq("customer_id", customerId);
+
+          const { data, error } = await query
+            .order("entry_date", { ascending: false })
+            .order("id", { ascending: true })
+            .range(offset, offset + SUPABASE_PAGE_SIZE - 1);
+
+          if (error) throw error;
+          if (!data?.length) break;
+
+          sales.push(...(data as DailySale[]));
+          offset += data.length;
         }
+
+        return sales
+          .filter((s) => customerMap.has(s.customer_id))
+          .map((s) => ({
+            ...s,
+            customer: customerMap.get(s.customer_id) || s.customer,
+          }));
       } catch (e) {
         console.error("Supabase exception in getAllDailySales:", e);
       }
@@ -357,7 +374,11 @@ export const DataStore = {
 
     const allSales = getLocal<DailySale[]>(STORAGE_KEYS.DAILY_SALES, initialDailySales);
     return allSales
-      .filter((s) => customerMap.has(s.customer_id))
+      .filter(
+        (s) =>
+          customerMap.has(s.customer_id) &&
+          (!customerId || s.customer_id === customerId)
+      )
       .map((s) => ({
         ...s,
         customer: customerMap.get(s.customer_id),
@@ -446,23 +467,33 @@ export const DataStore = {
 
     if (isSupabaseConfigured) {
       try {
-        let query = supabase
-          .from("customer_payments")
-          .select("*, customer:customers(*)")
-          .order("payment_date", { ascending: false });
-        if (customerId) query = query.eq("customer_id", customerId);
-        const { data, error } = await query;
+        const payments: CustomerPayment[] = [];
+        let offset = 0;
 
-        if (error) {
-          console.error("Supabase Error in getCustomerPayments:", error);
-        } else if (data) {
-          return (data as CustomerPayment[])
-            .filter((p) => customerMap.has(p.customer_id))
-            .map((p) => ({
-              ...p,
-              customer: customerMap.get(p.customer_id) || p.customer,
-            }));
+        while (true) {
+          let query = supabase
+            .from("customer_payments")
+            .select("*, customer:customers(*)");
+          if (customerId) query = query.eq("customer_id", customerId);
+
+          const { data, error } = await query
+            .order("payment_date", { ascending: false })
+            .order("id", { ascending: true })
+            .range(offset, offset + SUPABASE_PAGE_SIZE - 1);
+
+          if (error) throw error;
+          if (!data?.length) break;
+
+          payments.push(...(data as CustomerPayment[]));
+          offset += data.length;
         }
+
+        return payments
+          .filter((p) => customerMap.has(p.customer_id))
+          .map((p) => ({
+            ...p,
+            customer: customerMap.get(p.customer_id) || p.customer,
+          }));
       } catch (e) {
         console.error("Supabase exception in getCustomerPayments:", e);
       }
@@ -1117,9 +1148,7 @@ export const DataStore = {
     const monthStart = startOfMonth(new Date(year, month - 1, 1));
     const monthEnd = endOfMonth(monthStart);
 
-    const allSales = (await this.getAllDailySales()).filter(
-      (s) => s.customer_id === customerId
-    );
+    const allSales = await this.getAllDailySales(false, customerId);
     const allPayments = await this.getCustomerPayments(customerId);
 
     // Filter for the requested month

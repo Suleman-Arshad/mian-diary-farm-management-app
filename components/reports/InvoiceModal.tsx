@@ -100,7 +100,7 @@ export function InvoiceModal({ open, onOpenChange, bill }: InvoiceModalProps) {
             </div>
           </div>
 
-          {/* Recent itemized deliveries snippet */}
+          {/* Itemized deliveries for the selected billing month */}
           <div>
             <span className="text-xs font-semibold text-slate-700 mb-2 block">
               Deliveries Included ({bill.deliveries.length} entries):
