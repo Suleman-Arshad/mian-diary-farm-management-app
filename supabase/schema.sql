@@ -35,11 +35,31 @@ CREATE TABLE IF NOT EXISTS customer_payments (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     customer_id UUID NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
     payment_date DATE NOT NULL DEFAULT CURRENT_DATE,
+    billing_month TEXT NOT NULL DEFAULT to_char(CURRENT_DATE, 'YYYY-MM'),
     amount_paid NUMERIC(10, 2) NOT NULL CHECK (amount_paid > 0),
-    payment_mode TEXT NOT NULL CHECK (payment_mode IN ('Cash', 'Bank Transfer', 'EasyPaisa/JazzCash')),
+    payment_mode TEXT NOT NULL CHECK (payment_mode IN ('Cash', 'Online', 'JazzCash', 'Bank Transfer', 'EasyPaisa/JazzCash')),
     notes TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- Backfill payments created before billing-month allocation was introduced.
+ALTER TABLE customer_payments ADD COLUMN IF NOT EXISTS billing_month TEXT;
+UPDATE customer_payments
+SET billing_month = to_char(payment_date, 'YYYY-MM')
+WHERE billing_month IS NULL OR billing_month = '';
+ALTER TABLE customer_payments ALTER COLUMN billing_month SET NOT NULL;
+ALTER TABLE customer_payments
+  ALTER COLUMN billing_month SET DEFAULT to_char(CURRENT_DATE, 'YYYY-MM');
+ALTER TABLE customer_payments
+  DROP CONSTRAINT IF EXISTS customer_payments_payment_mode_check;
+ALTER TABLE customer_payments
+  ADD CONSTRAINT customer_payments_payment_mode_check
+  CHECK (payment_mode IN ('Cash', 'Online', 'JazzCash', 'Bank Transfer', 'EasyPaisa/JazzCash'));
+ALTER TABLE customer_payments
+  DROP CONSTRAINT IF EXISTS customer_payments_billing_month_check;
+ALTER TABLE customer_payments
+  ADD CONSTRAINT customer_payments_billing_month_check
+  CHECK (billing_month ~ '^[0-9]{4}-(0[1-9]|1[0-2])$');
 
 -- 4. SUPPLIERS TABLE
 CREATE TABLE IF NOT EXISTS suppliers (

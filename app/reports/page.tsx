@@ -30,6 +30,7 @@ import {
   formatKg,
   getCurrentMonthString,
   formatDateDisplay,
+  getMonthlyBillFileName,
 } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
@@ -124,7 +125,10 @@ function ReportsContent() {
       setPrintingMonthlyBill(true);
       await printPdfDocument(
         <InvoicePDFDocument bill={billSummary} />,
-        `Milk Bill - ${billSummary.customer.name} - ${billSummary.monthName}`
+        getMonthlyBillFileName(billSummary.customer.name, billSummary.month).replace(
+          /\.pdf$/i,
+          ""
+        )
       );
     } catch (error) {
       console.error("Failed to print monthly bill PDF", error);

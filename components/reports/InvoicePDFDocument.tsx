@@ -8,6 +8,7 @@ import {
   StyleSheet,
 } from "@react-pdf/renderer";
 import { MonthlyBillSummary } from "@/types/database";
+import { getMonthlyBillFileName } from "@/lib/utils";
 
 // Create PDF Styles
 const styles = StyleSheet.create({
@@ -200,7 +201,7 @@ export function InvoicePDFDocument({ bill }: { bill: MonthlyBillSummary }) {
   } = bill;
 
   return (
-    <Document title={`Milk_Bill_${customer.name}_${monthName}.pdf`}>
+    <Document title={getMonthlyBillFileName(customer.name, bill.month)}>
       <Page size="A4" style={styles.page}>
         {/* Header */}
         <View style={styles.header}>

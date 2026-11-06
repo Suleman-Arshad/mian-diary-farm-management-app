@@ -49,9 +49,12 @@ export const paymentSchema = z.object({
   customer_id: z.string().min(1, "Customer selection is required"),
   payment_date: z.string().min(1, "Payment date is required"),
   amount_paid: z.coerce.number().positive("Amount paid must be greater than 0"),
-  payment_mode: z.enum(["Cash", "Bank Transfer", "EasyPaisa/JazzCash"], {
-    errorMap: () => ({ message: "Please select a valid payment method" }),
-  }),
+  payment_mode: z.enum(
+    ["Cash", "Online", "JazzCash", "Bank Transfer", "EasyPaisa/JazzCash"],
+    {
+      errorMap: () => ({ message: "Please select a valid payment method" }),
+    }
+  ),
   notes: z.string().optional().default(""),
 });
 

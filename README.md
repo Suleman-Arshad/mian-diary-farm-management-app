@@ -18,22 +18,28 @@ Designed for both dairy farm managers on desktop screens and delivery riders on 
 - **Customer CRUD**: Full name, unique phone number (WhatsApp enabled), delivery colony/address, fixed rate per KG, and opening balance.
 - **Search & Filters**: Search by name, phone, or address; filter by active/inactive and balance status.
 - **Customer Transaction Ledger**: Detailed chronological record of every milk delivery, Nagha tag, and payment credit with real-time running balance calculation.
-- **Payment Collection Form**: Log payments with date, amount, payment mode (`Cash`, `Bank Transfer`, `EasyPaisa/JazzCash`), and reference notes.
+- **Payment Collection Form**: Log payments with date, amount, payment mode (`Cash`, `Online`, `JazzCash`), and reference notes.
 
-### 3. Fast Daily Milk Batch Entry (`/daily-entry`)
+### 3. Payment Receipts & Multi-Tranche Ledger (`/payment-receipts`)
+- **Month-wise Customer Bills**: Review every active customer's prior balance, selected-month charges, receipts, and remaining amount.
+- **Partial Payment Receipts**: Record multiple dated Cash, Online, or JazzCash payments against the same billing month, with transaction notes and an overpayment guard.
+- **Closed-month Allocation**: A receipt stays allocated to the selected billing month even if it is collected later; subsequent deliveries remain in their own month.
+- **Standard Bill PDFs**: Customer bills download as `Bill_[CustomerName]_[MonthName]_[Year].pdf`.
+
+### 4. Fast Daily Milk Batch Entry (`/daily-entry`)
 - **Batch Grid**: Date-filtered table of all active customers for quick, keyboard-friendly recording.
 - **Quick 'Nagha' Toggle**: Instantly mark a customer as absent for the day (zeroes quantity and charges).
 - **Custom Rate Overrides**: Override fixed rate for specific bulk orders or special discounts on any day.
 - **Sticky Live Summary**: Real-time counter of total KGs distributed and total billed amounts.
 
-### 4. Farm Purchases & Reconciliation (`/purchases`)
+### 5. Farm Purchases & Reconciliation (`/purchases`)
 - **Supplier Directory**: Register cattle farms, contact information, and standard purchase rates.
 - **Intake Log**: Record bulk farm purchases with quantity, rate, and auto-calculated total cost.
 - **Daily Reconciliation Engine**:
   $$\text{Wastage / Variance (KG)} = \text{Total Farm Purchases (KG)} - \text{Total Customer Deliveries (KG)}$$
   Features automated status badges: *Balanced*, *Normal Handling Variance (<3%)*, or *High Loss Alert (>3%)*.
 
-### 5. Daily Expenses (`/expenses`)
+### 6. Daily Expenses (`/expenses`)
 - **Overhead Tracker**: Log daily operational expenses with category selection:
   - `Petrol/Fuel` (delivery bikes and vans)
   - `Vehicle Maintenance` (oil changes, tire repairs)
@@ -42,7 +48,7 @@ Designed for both dairy farm managers on desktop screens and delivery riders on 
   - `Miscellaneous`
 - **Monthly Filter**: Visual metric cards summarizing expenses by category and total monthly spend.
 
-### 6. Billing, PDF & WhatsApp Reports (`/reports`)
+### 7. Billing, PDF & WhatsApp Reports (`/reports`)
 - **Automated Monthly Bill Calculator**:
   $$\text{Net Payable} = (\text{Total KGs Sold} \times \text{Applicable Rate}) + \text{Previous Balance} - \text{Total Payments}$$
 - **Client-Side PDF Generator**: Generates clean, branded PDF invoices using `@react-pdf/renderer` featuring customer info, itemized daily delivery log, subtotal, and total due.
@@ -112,7 +118,7 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 1. Sign in to your [Supabase Dashboard](https://supabase.com).
 2. Create a new project (e.g. `dairy-management`).
 3. In the left navigation, click on the **SQL Editor**.
-4. Open the file `supabase/schema.sql` from this repository, copy all the SQL code, paste it into the Supabase SQL Editor, and click **Run**.
+4. Open the file `supabase/schema.sql` from this repository, copy all the SQL code, paste it into the Supabase SQL Editor, and click **Run**. The script also backfills `customer_payments.billing_month` from existing payment dates.
 5. This creates:
    - Tables: `customers`, `daily_sales`, `customer_payments`, `suppliers`, `daily_purchases`, `daily_expenses`
    - Constraints, foreign keys with cascade delete, and unique checks
@@ -147,6 +153,8 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 │   │   └── [id]/page.tsx             # Detailed customer ledger & running balance
 │   ├── daily-entry/
 │   │   └── page.tsx                  # Batch daily milk delivery entry with Nagha toggle
+│   ├── payment-receipts/
+│   │   └── page.tsx                  # Month-wise bills, partial payment receipts, and balances
 │   ├── purchases/
 │   │   └── page.tsx                  # Farm bulk purchases & Daily Reconciliation Engine
 │   ├── expenses/

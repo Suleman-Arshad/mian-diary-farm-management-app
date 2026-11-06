@@ -15,6 +15,7 @@ import {
   Calendar,
   LogOut,
   Shield,
+  Wallet,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { isSupabaseConfigured } from "@/lib/supabaseClient";
@@ -37,6 +38,12 @@ const NAV_ITEMS = [
     name: "Customers",
     href: "/customers",
     icon: Users,
+    badge: null,
+  },
+  {
+    name: "Payment Receipts",
+    href: "/payment-receipts",
+    icon: Wallet,
     badge: null,
   },
   {

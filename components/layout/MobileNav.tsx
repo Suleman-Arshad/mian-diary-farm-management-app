@@ -14,6 +14,7 @@ import {
   Database,
   LogOut,
   Shield,
+  Wallet,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { isSupabaseConfigured } from "@/lib/supabaseClient";
@@ -32,6 +33,7 @@ export function MobileNav({ isOpen, onClose }: MobileNavProps) {
     { name: "Dashboard", href: "/", icon: LayoutDashboard },
     { name: "Daily Milk Entry", href: "/daily-entry", icon: ClipboardList },
     { name: "Customers & Ledger", href: "/customers", icon: Users },
+    { name: "Payment Receipts", href: "/payment-receipts", icon: Wallet },
     { name: "Farm Purchases", href: "/purchases", icon: Truck },
     { name: "Daily Expenses", href: "/expenses", icon: Receipt },
     { name: "Billing & Reports", href: "/reports", icon: FileSpreadsheet },

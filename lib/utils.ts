@@ -44,3 +44,14 @@ export function getCurrentMonthString(): string {
   const month = String(now.getMonth() + 1).padStart(2, "0");
   return `${year}-${month}`;
 }
+
+export function getMonthlyBillFileName(customerName: string, monthStr: string): string {
+  const [year, month] = monthStr.split("-").map(Number);
+  const monthName = format(new Date(year, month - 1, 1), "MMMM");
+  const safeCustomerName = customerName
+    .trim()
+    .replace(/[<>:"/\\|?*\x00-\x1F]/g, "")
+    .replace(/\s+/g, "_")
+    .replace(/^_+|_+$/g, "");
+  return `Bill_${safeCustomerName}_${monthName}_${year}.pdf`;
+}

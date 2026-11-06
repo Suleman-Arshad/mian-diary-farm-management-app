@@ -1,4 +1,9 @@
-export type PaymentMode = 'Cash' | 'Bank Transfer' | 'EasyPaisa/JazzCash';
+export type PaymentMode =
+  | 'Cash'
+  | 'Online'
+  | 'JazzCash'
+  | 'Bank Transfer'
+  | 'EasyPaisa/JazzCash';
 
 export type ExpenseCategory =
   | 'Petrol/Fuel'
@@ -35,6 +40,7 @@ export interface CustomerPayment {
   id: string;
   customer_id: string;
   payment_date: string; // YYYY-MM-DD
+  billing_month?: string; // YYYY-MM
   amount_paid: number;
   payment_mode: PaymentMode;
   notes?: string | null;
@@ -111,4 +117,5 @@ export interface MonthlyBillSummary {
   totalPayments: number;
   currentMonthBalance: number;
   netPayableAmount: number;
+  outstandingBalance: number;
 }

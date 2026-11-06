@@ -25,6 +25,8 @@ interface PaymentDialogProps {
   onOpenChange: (open: boolean) => void;
   customers: Customer[];
   preselectedCustomerId?: string;
+  billingMonth?: string;
+  balanceDue?: number;
   onSavePayment: (values: PaymentFormValues) => Promise<void>;
 }
 
@@ -33,6 +35,8 @@ export function PaymentDialog({
   onOpenChange,
   customers,
   preselectedCustomerId,
+  billingMonth,
+  balanceDue,
   onSavePayment,
 }: PaymentDialogProps) {
   const [submitting, setSubmitting] = React.useState(false);
@@ -58,6 +62,12 @@ export function PaymentDialog({
 
   const selectedCustomerId = watch("customer_id");
   const selectedCustomer = customers.find((c) => c.id === selectedCustomerId);
+  const billingMonthLabel = billingMonth
+    ? new Date(`${billingMonth}-01T00:00:00`).toLocaleDateString("en-PK", {
+        month: "long",
+        year: "numeric",
+      })
+    : "";
 
   React.useEffect(() => {
     if (open) {
@@ -81,11 +91,15 @@ export function PaymentDialog({
       if (!customer_id) {
         throw new Error("Customer foreign key is required to record a payment.");
       }
+      const amount_paid = parseFloat(String(values.amount_paid));
+      if (balanceDue !== undefined && amount_paid > balanceDue) {
+        throw new Error("Payment cannot exceed the remaining balance for this bill.");
+      }
 
       await onSavePayment({
         ...values,
         customer_id,
-        amount_paid: parseFloat(String(values.amount_paid)),
+        amount_paid,
       });
       onOpenChange(false);
     } catch (err: any) {
@@ -102,10 +116,12 @@ export function PaymentDialog({
         <DialogHeader>
           <div className="flex items-center gap-2 text-emerald-600 mb-1">
             <Wallet className="h-5 w-5" />
-            <DialogTitle>Record Customer Payment</DialogTitle>
+            <DialogTitle>{billingMonth ? "Record Payment Receipt" : "Record Customer Payment"}</DialogTitle>
           </div>
           <DialogDescription>
-            Log a recovery payment to deduct from customer ledger balance.
+            {billingMonth
+              ? "Record a partial payment against this month's bill."
+              : "Log a recovery payment to deduct from customer ledger balance."}
           </DialogDescription>
         </DialogHeader>
 
@@ -140,8 +156,15 @@ export function PaymentDialog({
             <div className="rounded-lg bg-slate-50 border border-slate-200 p-2.5 flex items-center justify-between text-xs">
               <span className="text-slate-600">Fixed Rate: Rs. {selectedCustomer.fixed_rate_per_kg}/KG</span>
               <span className="font-semibold text-slate-800">
-                Opening Balance: {formatCurrency(selectedCustomer.previous_balance)}
+                {billingMonth
+                  ? `Bill balance: ${formatCurrency(balanceDue)}`
+                  : `Opening Balance: ${formatCurrency(selectedCustomer.previous_balance)}`}
               </span>
+            </div>
+          )}
+          {billingMonth && (
+            <div className="rounded-lg border border-sky-100 bg-sky-50 px-3 py-2 text-xs font-semibold text-sky-800">
+              Payment will be applied to {billingMonthLabel}.
             </div>
           )}
 
@@ -162,6 +185,7 @@ export function PaymentDialog({
                 type="number"
                 step="any"
                 min="0"
+                max={balanceDue}
                 placeholder="2000"
                 {...register("amount_paid")}
               />
@@ -176,8 +200,8 @@ export function PaymentDialog({
             <Label htmlFor="payment_mode">Payment Method *</Label>
             <Select id="payment_mode" {...register("payment_mode")}>
               <option value="Cash">Cash (In-Hand)</option>
-              <option value="EasyPaisa/JazzCash">EasyPaisa / JazzCash</option>
-              <option value="Bank Transfer">Bank Transfer / Online</option>
+              <option value="Online">Online / Bank Transfer</option>
+              <option value="JazzCash">JazzCash</option>
             </Select>
             {errors.payment_mode && (
               <p className="text-xs text-rose-600">{errors.payment_mode.message}</p>

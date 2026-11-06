@@ -18,7 +18,7 @@ import {
   initialDailyExpenses,
 } from "./mockData";
 import { supabase, isSupabaseConfigured } from "./supabaseClient";
-import { format, parseISO, startOfMonth, endOfMonth, isWithinInterval } from "date-fns";
+import { format, parseISO, startOfMonth } from "date-fns";
 
 const STORAGE_KEYS = {
   CUSTOMERS: "milk_dairy_customers",
@@ -30,6 +30,68 @@ const STORAGE_KEYS = {
 };
 
 const SUPABASE_PAGE_SIZE = 1000;
+
+function getPaymentBillingMonth(payment: CustomerPayment): string {
+  return payment.billing_month || payment.payment_date.slice(0, 7);
+}
+
+function buildMonthlyBillSummary(
+  customer: Customer,
+  monthStr: string,
+  allSales: DailySale[],
+  allPayments: CustomerPayment[]
+): MonthlyBillSummary {
+  const [year, month] = monthStr.split("-").map(Number);
+  const monthStart = startOfMonth(new Date(year, month - 1, 1));
+  const customerSales = allSales.filter((sale) => sale.customer_id === customer.id);
+  const customerPayments = allPayments.filter(
+    (payment) => payment.customer_id === customer.id
+  );
+  const monthlyDeliveries = customerSales
+    .filter((sale) => sale.entry_date.slice(0, 7) === monthStr)
+    .sort((a, b) => a.entry_date.localeCompare(b.entry_date));
+  const monthlyPayments = customerPayments
+    .filter((payment) => getPaymentBillingMonth(payment) === monthStr)
+    .sort((a, b) => a.payment_date.localeCompare(b.payment_date));
+
+  const priorDeliveriesTotal = customerSales
+    .filter((sale) => sale.entry_date.slice(0, 7) < monthStr)
+    .reduce((sum, sale) => sum + Number(sale.total_amount), 0);
+  const priorPaymentsTotal = customerPayments
+    .filter((payment) => getPaymentBillingMonth(payment) < monthStr)
+    .reduce((sum, payment) => sum + Number(payment.amount_paid), 0);
+  const previousBalance =
+    (customer.previous_balance || 0) + priorDeliveriesTotal - priorPaymentsTotal;
+  const totalQtyKg = monthlyDeliveries.reduce(
+    (sum, sale) => sum + (sale.is_nagha ? 0 : Number(sale.qty_kg)),
+    0
+  );
+  const totalMilkCost = monthlyDeliveries.reduce(
+    (sum, sale) => sum + Number(sale.total_amount),
+    0
+  );
+  const totalPayments = monthlyPayments.reduce(
+    (sum, payment) => sum + Number(payment.amount_paid),
+    0
+  );
+  const currentMonthBalance = totalMilkCost - totalPayments;
+  const netPayableAmount = previousBalance + currentMonthBalance;
+
+  return {
+    customer,
+    month: monthStr,
+    monthName: format(monthStart, "MMMM yyyy"),
+    previousBalance,
+    deliveries: monthlyDeliveries,
+    totalQtyKg,
+    totalMilkCost,
+    payments: monthlyPayments,
+    totalPayments,
+    currentMonthBalance,
+    netPayableAmount,
+    outstandingBalance: Math.max(0, netPayableAmount),
+  };
+}
 
 // Helper: check if a string is a standard UUID
 function isUuid(id?: string | null): boolean {
@@ -527,9 +589,22 @@ export const DataStore = {
       throw new Error("Payment amount must be a positive number.");
     }
 
+    const billing_month = payment.billing_month || payment.payment_date.slice(0, 7);
+    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(billing_month)) {
+      throw new Error("Billing month must use the YYYY-MM format.");
+    }
+    if (payment.billing_month) {
+      const bill = await this.getMonthlyBill(customer_id, billing_month);
+      if (!bill) throw new Error("Customer bill could not be found.");
+      if (amount_paid > bill.outstandingBalance) {
+        throw new Error("Payment cannot exceed the remaining balance for this bill.");
+      }
+    }
+
     const payload = {
       customer_id,
       payment_date: String(payment.payment_date),
+      billing_month,
       amount_paid,
       payment_mode: payment.payment_mode,
       notes: payment.notes ? String(payment.notes).trim() : null,
@@ -1034,11 +1109,16 @@ export const DataStore = {
         const credit = payment.amount_paid;
         running -= credit;
         totalPaid += credit;
+        const billingMonth = getPaymentBillingMonth(payment);
+        const billingMonthName = format(
+          parseISO(`${billingMonth}-01`),
+          "MMMM yyyy"
+        );
         transactions.push({
           id: payment.id,
           date: payment.payment_date,
           type: 'PAYMENT',
-          description: `Payment Received (${payment.payment_mode})${
+          description: `Payment Received (${payment.payment_mode}) for ${billingMonthName} bill${
             payment.notes ? ` - ${payment.notes}` : ''
           }`,
           debit: 0,
@@ -1144,68 +1224,29 @@ export const DataStore = {
     const customer = await this.getCustomerById(customerId);
     if (!customer) return null;
 
-    const [year, month] = monthStr.split('-').map(Number);
-    const monthStart = startOfMonth(new Date(year, month - 1, 1));
-    const monthEnd = endOfMonth(monthStart);
+    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(monthStr)) {
+      throw new Error("Billing month must use the YYYY-MM format.");
+    }
+    const [allSales, allPayments] = await Promise.all([
+      this.getAllDailySales(false, customerId),
+      this.getCustomerPayments(customerId),
+    ]);
+    return buildMonthlyBillSummary(customer, monthStr, allSales, allPayments);
+  },
 
-    const allSales = await this.getAllDailySales(false, customerId);
-    const allPayments = await this.getCustomerPayments(customerId);
-
-    // Filter for the requested month
-    const monthlyDeliveries = allSales
-      .filter((s) => {
-        const d = parseISO(s.entry_date);
-        return isWithinInterval(d, { start: monthStart, end: monthEnd });
-      })
-      .sort((a, b) => a.entry_date.localeCompare(b.entry_date));
-
-    const monthlyPayments = allPayments
-      .filter((p) => {
-        const d = parseISO(p.payment_date);
-        return isWithinInterval(d, { start: monthStart, end: monthEnd });
-      })
-      .sort((a, b) => a.payment_date.localeCompare(b.payment_date));
-
-    // Calculate previous balance: customer.previous_balance + previous month deliveries - previous month payments
-    const priorDeliveriesTotal = allSales
-      .filter((s) => parseISO(s.entry_date) < monthStart)
-      .reduce((sum, s) => sum + Number(s.total_amount), 0);
-
-    const priorPaymentsTotal = allPayments
-      .filter((p) => parseISO(p.payment_date) < monthStart)
-      .reduce((sum, p) => sum + Number(p.amount_paid), 0);
-
-    const effectivePreviousBalance =
-      (customer.previous_balance || 0) + priorDeliveriesTotal - priorPaymentsTotal;
-
-    const totalQtyKg = monthlyDeliveries.reduce(
-      (sum, s) => sum + (s.is_nagha ? 0 : Number(s.qty_kg)),
-      0
-    );
-    const totalMilkCost = monthlyDeliveries.reduce(
-      (sum, s) => sum + Number(s.total_amount),
-      0
-    );
-    const totalPayments = monthlyPayments.reduce(
-      (sum, p) => sum + Number(p.amount_paid),
-      0
-    );
-
-    const currentMonthBalance = totalMilkCost - totalPayments;
-    const netPayableAmount = effectivePreviousBalance + currentMonthBalance;
-
-    return {
-      customer,
-      month: monthStr,
-      monthName: format(monthStart, "MMMM yyyy"),
-      previousBalance: effectivePreviousBalance,
-      deliveries: monthlyDeliveries,
-      totalQtyKg,
-      totalMilkCost,
-      payments: monthlyPayments,
-      totalPayments,
-      currentMonthBalance,
-      netPayableAmount,
-    };
+  async getMonthlyBills(monthStr: string): Promise<MonthlyBillSummary[]> {
+    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(monthStr)) {
+      throw new Error("Billing month must use the YYYY-MM format.");
+    }
+    const [customers, allSales, allPayments] = await Promise.all([
+      this.getCustomers(),
+      this.getAllDailySales(),
+      this.getCustomerPayments(),
+    ]);
+    return customers
+      .filter((customer) => customer.is_active)
+      .map((customer) =>
+        buildMonthlyBillSummary(customer, monthStr, allSales, allPayments)
+      );
   },
 };

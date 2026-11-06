@@ -11,7 +11,12 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { formatCurrency, formatKg, formatDateDisplay } from "@/lib/utils";
+import {
+  formatCurrency,
+  formatKg,
+  formatDateDisplay,
+  getMonthlyBillFileName,
+} from "@/lib/utils";
 import { FileText, Download, Loader2, Printer } from "lucide-react";
 import { InvoicePDFDocument } from "./InvoicePDFDocument";
 import { printPdfDocument } from "@/lib/printPdf";
@@ -28,7 +33,7 @@ export function InvoiceModal({ open, onOpenChange, bill }: InvoiceModalProps) {
 
   if (!bill) return null;
 
-  const fileName = `Milk_Bill_${bill.customer.name.replace(/\s+/g, "_")}_${bill.month}.pdf`;
+  const fileName = getMonthlyBillFileName(bill.customer.name, bill.month);
 
   const handleDownloadPDF = async () => {
     try {
@@ -57,7 +62,7 @@ export function InvoiceModal({ open, onOpenChange, bill }: InvoiceModalProps) {
       setPrinting(true);
       await printPdfDocument(
         <InvoicePDFDocument bill={bill} />,
-        `Milk Bill - ${bill.customer.name} - ${bill.monthName}`
+        fileName.replace(/\.pdf$/i, "")
       );
     } catch (err) {
       console.error("Failed to print invoice PDF", err);
