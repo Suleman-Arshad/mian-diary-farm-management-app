@@ -107,6 +107,10 @@ export function ExpenseFormDialog({
               <option value="Vehicle Maintenance">Vehicle Maintenance & Repairs</option>
               <option value="Staff Salary">Staff / Delivery Boy Daily Salary</option>
               <option value="Feed/Containers">Feed, Ice, Cans & Plastic Containers</option>
+              <option value="Feed Purchase">Farm Feed Purchase</option>
+              <option value="Veterinary">Veterinary & Animal Treatment</option>
+              <option value="Worker Payroll">Worker Payroll Payment</option>
+              <option value="Animal Purchase">Animal Purchase</option>
               <option value="Miscellaneous">Miscellaneous Operations</option>
             </Select>
             {errors.category && (

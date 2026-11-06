@@ -26,8 +26,23 @@ import {
   DailyExpense,
   CustomerPayment,
   DailyReconciliation,
+  Animal,
+  FeedInventoryItem,
+  FeedTransaction,
+  MedicineInventoryItem,
+  SupplierPayment,
+  Worker,
+  WorkerPayroll,
 } from "@/types/database";
 import { DataStore } from "@/lib/store";
+import { FarmStore } from "@/lib/farmStore";
+import {
+  calculateNetSalesRevenue,
+  calculateSupplierPayables,
+  calculateWorkerPayables,
+  countActiveAnimals,
+  countLowStockFarmItems,
+} from "@/lib/farmMetrics";
 import {
   formatCurrency,
   formatKg,
@@ -38,6 +53,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { PaymentDialog } from "@/components/customers/PaymentDialog";
 import { PaymentFormValues } from "@/lib/validations";
+import { toast } from "@/components/ui/toast";
 
 export default function DashboardPage() {
   const todayStr = getTodayDateString();
@@ -49,9 +65,17 @@ export default function DashboardPage() {
   );
   const [todaySales, setTodaySales] = React.useState<DailySale[]>([]);
   const [todayPurchases, setTodayPurchases] = React.useState<DailyPurchase[]>([]);
+  const [allPurchases, setAllPurchases] = React.useState<DailyPurchase[]>([]);
   const [todayExpenses, setTodayExpenses] = React.useState<DailyExpense[]>([]);
   const [todayPayments, setTodayPayments] = React.useState<CustomerPayment[]>([]);
   const [reconciliation, setReconciliation] = React.useState<DailyReconciliation | null>(null);
+  const [animals, setAnimals] = React.useState<Animal[]>([]);
+  const [feedInventory, setFeedInventory] = React.useState<FeedInventoryItem[]>([]);
+  const [feedTransactions, setFeedTransactions] = React.useState<FeedTransaction[]>([]);
+  const [medicineInventory, setMedicineInventory] = React.useState<MedicineInventoryItem[]>([]);
+  const [workers, setWorkers] = React.useState<Worker[]>([]);
+  const [workerPayrolls, setWorkerPayrolls] = React.useState<WorkerPayroll[]>([]);
+  const [supplierPayments, setSupplierPayments] = React.useState<SupplierPayment[]>([]);
 
   // Payment modal
   const [paymentModalOpen, setPaymentModalOpen] = React.useState(false);
@@ -68,6 +92,13 @@ export default function DashboardPage() {
         reconData,
         supList,
         balances,
+        animalRows,
+        feedItems,
+        feedMoves,
+        medicineItems,
+        workerRows,
+        payrollRows,
+        supplierPaymentRows,
       ] =
         await Promise.all([
           DataStore.getCustomers(),
@@ -78,6 +109,13 @@ export default function DashboardPage() {
           DataStore.getDailyReconciliation(todayStr),
           DataStore.getSuppliers(),
           DataStore.getCustomerBalances(),
+          FarmStore.getAnimals(),
+          FarmStore.getFeedInventory(),
+          FarmStore.getFeedTransactions(),
+          FarmStore.getMedicineInventory(),
+          FarmStore.getWorkers(),
+          FarmStore.getWorkerPayrolls(),
+          FarmStore.getSupplierPayments(),
         ]);
 
       const activeCustMap = new Map(
@@ -102,6 +140,7 @@ export default function DashboardPage() {
       setCustomerBalances(balances);
       setTodaySales(validTodaySales);
       setTodayPurchases(validTodayPurchases);
+      setAllPurchases(purList);
       setTodayExpenses(expList.filter((e) => e.expense_date === todayStr));
       setTodayPayments(
         payList.filter(
@@ -109,8 +148,16 @@ export default function DashboardPage() {
         )
       );
       setReconciliation(reconData);
+      setAnimals(animalRows);
+      setFeedInventory(feedItems);
+      setFeedTransactions(feedMoves);
+      setMedicineInventory(medicineItems);
+      setWorkers(workerRows);
+      setWorkerPayrolls(payrollRows);
+      setSupplierPayments(supplierPaymentRows);
     } catch (err) {
       console.error(err);
+      toast.error(err instanceof Error ? err.message : "Could not load dashboard data.");
     } finally {
       setLoading(false);
     }
@@ -160,7 +207,12 @@ export default function DashboardPage() {
   );
 
   // Daily profit margin: Sales - (Farm Cost + Expenses)
-  const dayNetMargin = totalSalesRevenue - (totalFarmCost + totalDayExpenses);
+  const netSalesRevenue = calculateNetSalesRevenue(totalSalesRevenue, todayExpenses);
+  const animalCounts = countActiveAnimals(animals);
+  const lowStockCount = countLowStockFarmItems(feedInventory, medicineInventory);
+  const outstandingPayables =
+    calculateSupplierPayables(allPurchases, feedTransactions, supplierPayments) +
+    calculateWorkerPayables(workerPayrolls, workers, todayStr.slice(0, 7));
 
   return (
     <div className="space-y-6">
@@ -294,16 +346,16 @@ export default function DashboardPage() {
           Today Financial Pulse &amp; Cash Flow
         </h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-          {/* Today's Sales Revenue */}
+          {/* Today's Net Sales Revenue */}
           <div className="rounded-xl border border-emerald-100 bg-gradient-to-br from-emerald-50/50 to-white p-4 shadow-sm">
             <span className="text-xs font-semibold text-emerald-700 uppercase tracking-wider block">
-              Today Sales Revenue
+              Today Net Sales Revenue
             </span>
             <p className="text-2xl sm:text-3xl font-black text-emerald-900 mt-1">
-              {formatCurrency(totalSalesRevenue)}
+              {formatCurrency(netSalesRevenue)}
             </p>
             <span className="text-[11px] text-emerald-600 mt-0.5 block">
-              Daily customer charges
+              Gross {formatCurrency(totalSalesRevenue)} less expenses {formatCurrency(totalDayExpenses)}
             </span>
           </div>
 
@@ -344,6 +396,30 @@ export default function DashboardPage() {
             <span className="text-[11px] text-sky-600 mt-0.5 block">
               {todayPayments.length} payments collected
             </span>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3 flex items-center gap-1.5">
+          <Users className="h-4 w-4 text-sky-600" />
+          Farm Assets &amp; Outstanding Payables
+        </h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+          <Link href="/animals" className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm hover:border-sky-300">
+            <div className="text-xs font-semibold uppercase tracking-wider text-slate-500">Active Animals</div>
+            <p className="mt-1 text-2xl font-extrabold text-slate-900">{animalCounts.Cow + animalCounts.Buffalo + animalCounts.Calf}</p>
+            <span className="text-[11px] text-slate-500">Cows {animalCounts.Cow} · Buffaloes {animalCounts.Buffalo} · Calves {animalCounts.Calf}</span>
+          </Link>
+          <Link href="/feed" className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm hover:border-amber-300">
+            <div className="text-xs font-semibold uppercase tracking-wider text-slate-500">Low-Stock Feed &amp; Medicine</div>
+            <p className={`mt-1 text-2xl font-extrabold ${lowStockCount ? "text-amber-700" : "text-emerald-700"}`}>{lowStockCount} alerts</p>
+            <span className="text-[11px] text-slate-500">{feedInventory.length} feed items · {medicineInventory.length} medicines tracked</span>
+          </Link>
+          <div className="rounded-xl border border-rose-200 bg-rose-50/70 p-4 shadow-sm">
+            <div className="text-xs font-semibold uppercase tracking-wider text-rose-700">Outstanding Supplier &amp; Worker Payables</div>
+            <p className="mt-1 text-2xl font-extrabold text-rose-800">{formatCurrency(outstandingPayables)}</p>
+            <span className="text-[11px] text-rose-700">Includes unpaid purchases and payroll balance</span>
           </div>
         </div>
       </div>

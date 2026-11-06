@@ -118,6 +118,14 @@ export default function ExpensesPage() {
         return <Badge className="bg-blue-100 text-blue-800 border-blue-300">Salary</Badge>;
       case "Feed/Containers":
         return <Badge className="bg-emerald-100 text-emerald-800 border-emerald-300">Feed/Containers</Badge>;
+      case "Feed Purchase":
+        return <Badge className="bg-lime-100 text-lime-800 border-lime-300">Feed Purchase</Badge>;
+      case "Veterinary":
+        return <Badge className="bg-violet-100 text-violet-800 border-violet-300">Veterinary</Badge>;
+      case "Worker Payroll":
+        return <Badge className="bg-blue-100 text-blue-800 border-blue-300">Worker Payroll</Badge>;
+      case "Animal Purchase":
+        return <Badge className="bg-cyan-100 text-cyan-800 border-cyan-300">Animal Purchase</Badge>;
       default:
         return <Badge variant="secondary">Misc</Badge>;
     }
@@ -169,6 +177,10 @@ export default function ExpensesPage() {
             { label: "Maintenance", value: "Vehicle Maintenance" },
             { label: "Salary", value: "Staff Salary" },
             { label: "Containers", value: "Feed/Containers" },
+            { label: "Feed Purchase", value: "Feed Purchase" },
+            { label: "Veterinary", value: "Veterinary" },
+            { label: "Payroll", value: "Worker Payroll" },
+            { label: "Animals", value: "Animal Purchase" },
             { label: "Misc", value: "Miscellaneous" },
           ].map((item) => (
             <button

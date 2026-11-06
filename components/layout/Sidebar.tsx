@@ -16,6 +16,9 @@ import {
   LogOut,
   Shield,
   Wallet,
+  PawPrint,
+  Package,
+  HeartPulse,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { isSupabaseConfigured } from "@/lib/supabaseClient";
@@ -50,6 +53,36 @@ const NAV_ITEMS = [
     name: "Farm Purchases",
     href: "/purchases",
     icon: Truck,
+    badge: null,
+  },
+  {
+    name: "Animals",
+    href: "/animals",
+    icon: PawPrint,
+    badge: null,
+  },
+  {
+    name: "Feed Inventory",
+    href: "/feed",
+    icon: Package,
+    badge: null,
+  },
+  {
+    name: "Veterinary",
+    href: "/veterinary",
+    icon: HeartPulse,
+    badge: null,
+  },
+  {
+    name: "Milk Production",
+    href: "/production",
+    icon: Milk,
+    badge: null,
+  },
+  {
+    name: "Workers & Payroll",
+    href: "/workers",
+    icon: Users,
     badge: null,
   },
   {

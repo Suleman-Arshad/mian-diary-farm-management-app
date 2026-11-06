@@ -48,7 +48,20 @@ Designed for both dairy farm managers on desktop screens and delivery riders on 
   - `Miscellaneous`
 - **Monthly Filter**: Visual metric cards summarizing expenses by category and total monthly spend.
 
-### 7. Billing, PDF & WhatsApp Reports (`/reports`)
+### 7. Farm Operations & Payroll
+- **Animal Register (`/animals`)**: Cow, buffalo, and calf profiles with unique tags, age, breed, photo URL, active/sold/deceased status, purchase and sale values/dates, and linked medical, vaccination, and calving history.
+- **Feed Inventory (`/feed`)**: Track feed stock, purchases, supplier, unit rates, daily consumption, low-stock levels, monthly spend, supplier payments, and outstanding supplier balances.
+- **Veterinary (`/veterinary`)**: Medicine and vaccine stock, animal treatment and dosage records, treatment/medicine and vet costs, stock consumption, and follow-up reminders.
+- **Milk Production (`/production`)**: Per-animal morning/evening yield and wastage, daily totals, weekly/monthly summaries, and seven-day animal comparisons.
+- **Workers & Payroll (`/workers`)**: Monthly salary or daily-wage profiles, payroll entries, advances, bonuses, deductions, overtime, payments, and outstanding balances.
+
+### 8. Automated Expenses & Dashboard
+- Daily net sales revenue is gross milk sales less all expenses recorded for that date; historical expense dates are preserved.
+- Feed purchases, animal purchases, veterinary treatment costs, and payroll/advance payments automatically enter the existing daily expense stream. Manual farm costs continue to use the same stream.
+- Dashboard KPI cards show active animals by type, low-stock feed/medicine, and outstanding supplier and worker payables.
+- The legacy `daily_expenses` table remains the application interface for existing reports. A normalized `expenses` ledger mirrors it for new integrations.
+
+### 9. Billing, PDF & WhatsApp Reports (`/reports`)
 - **Automated Monthly Bill Calculator**:
   $$\text{Net Payable} = (\text{Total KGs Sold} \times \text{Applicable Rate}) + \text{Previous Balance} - \text{Total Payments}$$
 - **Client-Side PDF Generator**: Generates clean, branded PDF invoices using `@react-pdf/renderer` featuring customer info, itemized daily delivery log, subtotal, and total due.
@@ -118,9 +131,11 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 1. Sign in to your [Supabase Dashboard](https://supabase.com).
 2. Create a new project (e.g. `dairy-management`).
 3. In the left navigation, click on the **SQL Editor**.
-4. Open the file `supabase/schema.sql` from this repository, copy all the SQL code, paste it into the Supabase SQL Editor, and click **Run**. The script also backfills `customer_payments.billing_month` from existing payment dates.
-5. This creates:
-   - Tables: `customers`, `daily_sales`, `customer_payments`, `suppliers`, `daily_purchases`, `daily_expenses`
+4. Open the file `supabase/schema.sql` from this repository, copy all the SQL code, paste it into the Supabase SQL Editor, and click **Run**. The idempotent schema also backfills `customer_payments.billing_month` and the normalized expense ledger.
+5. This creates or updates:
+   - Existing tables: `customers`, `daily_sales`, `customer_payments`, `suppliers`, `daily_purchases`, `daily_expenses`
+   - Farm tables: `animals`, `animal_records`, `feed_inventory`, `feed_transactions`, `medicine_inventory`, `veterinary_logs`, `milk_production`, `workers`, `worker_payrolls`, `supplier_payments`, `expenses`
+   - Database triggers for stock adjustment, expense synchronization, and farm/payroll expense deductions
    - Constraints, foreign keys with cascade delete, and unique checks
    - Performance indexes on dates and customer IDs
    - Row Level Security (RLS) policies
@@ -138,6 +153,10 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
    - `NEXT_PUBLIC_SUPABASE_URL` = your Supabase URL
    - `NEXT_PUBLIC_SUPABASE_ANON_KEY` = your Supabase Anon Key
 5. Click **Deploy**. Vercel will automatically build the Next.js App Router project and provision a globally distributed production URL.
+
+## Validation
+
+Run `npm test` for focused checks covering exact daily expense deduction, animal-history cleanup, supplier balances, payroll balances, active animal counts, and low-stock aggregation. Run `npx tsc --noEmit` to type-check the application and `npm run build` for a production build.
 
 ---
 
@@ -157,6 +176,11 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 │   │   └── page.tsx                  # Month-wise bills, partial payment receipts, and balances
 │   ├── purchases/
 │   │   └── page.tsx                  # Farm bulk purchases & Daily Reconciliation Engine
+│   ├── animals/page.tsx              # Animal register and linked animal histories
+│   ├── feed/page.tsx                 # Feed inventory, transactions, and supplier payables
+│   ├── veterinary/page.tsx           # Medicine inventory, treatments, and reminders
+│   ├── production/page.tsx           # Per-animal milk yield and production reports
+│   ├── workers/page.tsx              # Staff profiles and payroll
 │   ├── expenses/
 │   │   └── page.tsx                  # Expense logging & category breakdown
 │   └── reports/
@@ -186,6 +210,8 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 │   ├── supabaseClient.ts             # Supabase client singleton with configuration guard
 │   ├── mockData.ts                   # Realistic sample data
 │   ├── store.ts                      # Unified DataStore service (Supabase + LocalStore)
+│   ├── farmStore.ts                  # Farm, animal, production, and payroll data service
+│   ├── farmMetrics.ts                # Shared dashboard and payable calculations
 │   ├── utils.ts                      # PKR Currency, KG formatters, and cn() helper
 │   └── validations.ts                # Zod schemas for all forms
 ├── types/
